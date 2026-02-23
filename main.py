@@ -1,32 +1,59 @@
 import pygame
 import math
 import random
+from track_gen import read_track, Tile
 
 pygame.init()
-screen = pygame.display.set_mode((1280, 736))
+screen = pygame.display.set_mode((1280, 768))
 clock = pygame.time.Clock()
 running = True
 dt = 0
 player_pos = pygame.Vector2(screen.get_width() / 2, screen.get_height() / 2)
 player_angle = 0
 
-rect_surface = pygame.Surface((16, 32), pygame.SRCALPHA)
-pygame.draw.rect(rect_surface, (255, 0, 0), (0, 0, 16, 32))
+rect_surface = pygame.Surface((8, 16), pygame.SRCALPHA)
+pygame.draw.rect(rect_surface, (255, 0, 0), (0, 0, 8, 16))
 
-player_acceleration = 100
-player_deceleration = 300
+player_acceleration = 35
+player_deceleration = 100
 player_velocity = 0
 
-grass_image = pygame.image.load('assets/grass.png').convert()
-TILE_SIZE = 32
-tiles_x = int(1280 / TILE_SIZE)
-tiles_y = int(736 / TILE_SIZE)
+track = read_track('track1.tr')
+corner = pygame.image.load('assets/corner.png')
+straight = pygame.image.load('assets/straight.png')
 
-# Precompute a random rotation for each tile
-tile_rotations = [
-    [random.choice([0, 90, 180, 270]) for y in range(tiles_y)]
-    for x in range(tiles_x)
-]
+TILE_SIZE = 64
+tiles_x = int(1280 / TILE_SIZE)
+tiles_y = int(768 / TILE_SIZE)
+
+track_surface = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
+
+for x in range(tiles_x):
+    for y in range(tiles_y):
+        tile = track[y][x]
+        if tile == Tile.STRAIGHT_RIGHT:
+            rotated_straight = pygame.transform.rotate(straight, 90)
+            track_surface.blit(rotated_straight, (TILE_SIZE * x, TILE_SIZE * y))
+        elif tile == Tile.STRAIGHT_LEFT:
+            rotated_straight = pygame.transform.rotate(straight, -90)
+            track_surface.blit(rotated_straight, (TILE_SIZE*x, TILE_SIZE*y))
+        elif tile == Tile.STRAIGHT_UP:
+            track_surface.blit(straight, (TILE_SIZE*x, TILE_SIZE*y))
+        elif tile == Tile.STRAIGHT_DOWN:
+            rotated_straight = pygame.transform.rotate(straight, 180)
+            track_surface.blit(rotated_straight, (TILE_SIZE*x, TILE_SIZE*y))
+        elif tile == Tile.CORNER_UP_RIGHT:
+            track_surface.blit(corner, (TILE_SIZE*x, TILE_SIZE*y))
+        elif tile == Tile.CORNER_UP_LEFT:
+            rotated_corner = pygame.transform.rotate(corner, -90)
+            track_surface.blit(rotated_corner, (TILE_SIZE*x, TILE_SIZE*y))
+        elif tile == Tile.CORNER_DOWN_LEFT:
+            rotated_corner = pygame.transform.rotate(corner, 180)
+            track_surface.blit(rotated_corner, (TILE_SIZE*x, TILE_SIZE*y))
+        elif tile == Tile.CORNER_DOWN_RIGHT:
+            rotated_corner = pygame.transform.rotate(corner, -270)
+            track_surface.blit(rotated_corner, (TILE_SIZE * x, TILE_SIZE*y))
+
 
 
 while running:
@@ -34,15 +61,8 @@ while running:
         if event.type == pygame.QUIT:
             running = False
 
-    screen.fill((0, 200, 0))
-    for x in range(tiles_x):
-        for y in range(tiles_y):
-            angle = tile_rotations[x][y]
-            rotated_grass = pygame.transform.rotate(grass_image, angle)
-
-            # Adjust position because rotation can change surface size
-            rect = rotated_grass.get_rect(topleft=(32 * x, 32 * y))
-            screen.blit(rotated_grass, rect)
+    screen.fill((116, 179, 74))
+    screen.blit(track_surface, (0,0))
 
     rotated_surface = pygame.transform.rotate(rect_surface, player_angle)
     rotated_rect = rotated_surface.get_rect(center=player_pos)
