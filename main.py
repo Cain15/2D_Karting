@@ -12,6 +12,10 @@ player_angle = 0
 rect_surface = pygame.Surface((16, 32), pygame.SRCALPHA)
 pygame.draw.rect(rect_surface, (255, 0, 0), (0, 0, 16, 32))
 
+player_acceleration = 100
+player_deceleration = 300
+player_velocity = 0
+
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -27,12 +31,15 @@ while running:
 
     keys = pygame.key.get_pressed()
     rad = math.radians(player_angle)
+    dist = player_velocity * dt
+    player_pos.y += dist * math.cos(rad)
+    player_pos.x += dist * math.sin(rad)
     if keys[pygame.K_UP]:
-        player_pos.y -= 300 * math.cos(rad) * dt
-        player_pos.x -= 300 * math.sin(rad) * dt
+        player_velocity -= player_acceleration * dt
+        player_velocity = max(-300, player_velocity)
     if keys[pygame.K_DOWN]:
-        player_pos.y += 300 * abs(math.cos(rad)) * dt
-        player_pos.x += 300 * abs(math.sin(rad)) * dt
+        player_velocity += player_deceleration * dt
+        player_velocity = min(0, player_velocity)
     if keys[pygame.K_LEFT]:
         player_angle += 4
     if keys[pygame.K_RIGHT]:
