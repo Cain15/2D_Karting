@@ -36,8 +36,9 @@ player_pos = pygame.Vector2(finish_tile[0]*TILE_SIZE, finish_tile[1]*TILE_SIZE +
 player_angle = 90
 player = pygame.image.load("assets/player.png")
 player = pygame.transform.scale(player, (20,40))
-player_acceleration = 45
-player_deceleration = 108
+friction = 9
+player_acceleration = 45 + friction
+player_deceleration = 108 - friction
 player_velocity = 0
 player_max_velocity = 270
 
@@ -51,7 +52,7 @@ straight = pygame.transform.scale(straight, (80,80))
 # Progress tracking
 seen_finish = False
 prev_tile = None
-min_visited_tiles = 69
+min_visited_tiles = 68
 tiles_visited = []
 amount_warnings = 0
 
@@ -132,6 +133,7 @@ while running:
         # Check input and act accordingly
         keys = pygame.key.get_pressed()
         rad = math.radians(player_angle) # Angle in radians
+        player_velocity = min(0, player_velocity + friction * dt)
         dist = player_velocity * dt # The distance traveled
         player_pos.y += dist * math.cos(rad) # Change y position
         player_pos.x += dist * math.sin(rad) # Change x position
@@ -155,6 +157,7 @@ while running:
             prev_tile = cur_tile
             if cur_tile not in tiles_visited and cur_type != Tile.GRASS:
                 tiles_visited.append(cur_tile)
+                print(len(tiles_visited))
             if cur_tile == finish_tile:
                 if not seen_finish:
                     seen_finish = True
@@ -162,13 +165,11 @@ while running:
                     dsq = True
                 else:
                     lap_times.append(pygame.time.get_ticks() - start_time)
-                    print(len(tiles_visited))
                     reset()
 
         if dsq:
             dsq = False
-            message = "You were DISQUALIFIED: "
-            print(tiles_visited)
+            message = "Lap INVALIDATED: "
             reset()
 
 
