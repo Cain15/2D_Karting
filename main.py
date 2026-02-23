@@ -1,8 +1,9 @@
 import pygame
 import math
+import random
 
 pygame.init()
-screen = pygame.display.set_mode((1280, 720))
+screen = pygame.display.set_mode((1280, 736))
 clock = pygame.time.Clock()
 running = True
 dt = 0
@@ -16,12 +17,32 @@ player_acceleration = 100
 player_deceleration = 300
 player_velocity = 0
 
+grass_image = pygame.image.load('assets/grass.png').convert()
+TILE_SIZE = 32
+tiles_x = int(1280 / TILE_SIZE)
+tiles_y = int(736 / TILE_SIZE)
+
+# Precompute a random rotation for each tile
+tile_rotations = [
+    [random.choice([0, 90, 180, 270]) for y in range(tiles_y)]
+    for x in range(tiles_x)
+]
+
+
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
 
     screen.fill((0, 200, 0))
+    for x in range(tiles_x):
+        for y in range(tiles_y):
+            angle = tile_rotations[x][y]
+            rotated_grass = pygame.transform.rotate(grass_image, angle)
+
+            # Adjust position because rotation can change surface size
+            rect = rotated_grass.get_rect(topleft=(32 * x, 32 * y))
+            screen.blit(rotated_grass, rect)
 
     rotated_surface = pygame.transform.rotate(rect_surface, player_angle)
     rotated_rect = rotated_surface.get_rect(center=player_pos)
