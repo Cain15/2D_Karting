@@ -32,7 +32,7 @@ tiles_y = 12
 finish_tile = (16,10)
 
 # Player properties
-player_pos = pygame.Vector2(finish_tile[0]*TILE_SIZE, finish_tile[1]*TILE_SIZE + TILE_SIZE/2)
+player_pos = pygame.Vector2((finish_tile[0]+1)*TILE_SIZE, finish_tile[1]*TILE_SIZE + TILE_SIZE/2)
 player_angle = 90
 player = pygame.image.load("assets/player.png")
 player = pygame.transform.scale(player, (20,40))
@@ -48,6 +48,8 @@ corner = pygame.image.load('assets/corner.png')
 corner = pygame.transform.scale(corner, (80,80))
 straight = pygame.image.load('assets/straight.png')
 straight = pygame.transform.scale(straight, (80,80))
+finish = pygame.image.load('assets/finish.png')
+finish = pygame.transform.scale(finish, (80,80))
 
 # Progress tracking
 seen_finish = False
@@ -108,6 +110,9 @@ for x in range(tiles_x):
         elif tile == Tile.CORNER_DOWN_RIGHT:
             rotated_corner = pygame.transform.rotate(corner, -270)
             track_surface.blit(rotated_corner, (TILE_SIZE * x, TILE_SIZE*y))
+        elif tile == Tile.FINISH_LINE:
+            rotated_finish = pygame.transform.rotate(finish, -90)
+            track_surface.blit(rotated_finish, (TILE_SIZE * x, TILE_SIZE * y))
 
 # Load font
 font = pygame.font.Font(None, 36)
@@ -212,7 +217,7 @@ while running:
         y += 25  # spacing between lines
 
     # Render penalties
-    penalty_text = font.render(f"({amount_warnings} warnings), Penalty: {amount_warnings * 5}s", True, (255, 255, 255))
+    penalty_text = font.render(f"[{amount_warnings} warning(s)], Penalty: {amount_warnings * 5}s", True, (255, 255, 255))
     if amount_warnings > 0:
         screen.blit(penalty_text, (10, 10))
 

@@ -14,6 +14,7 @@ tiles_y = int(768 / TILE_SIZE)
     6: corner down to left
     7: corner up to right
     8: corner up to left
+    9: finish line
 """
 
 class Tile(enum.Enum):
@@ -26,6 +27,7 @@ class Tile(enum.Enum):
     CORNER_DOWN_LEFT = 6
     CORNER_UP_RIGHT = 7
     CORNER_UP_LEFT = 8
+    FINISH_LINE = 9
 
 # with open("track1.tr", "w") as f:
 #     for j in range(tiles_y):
