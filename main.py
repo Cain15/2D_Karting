@@ -89,8 +89,6 @@ dsq = False
 # Keep lap times
 lap_times = []
 
-
-
 def reset():
     """
     Reset the Player and Game state, pause 3 seconds
@@ -142,6 +140,11 @@ for x in range(tiles_x):
 font = pygame.font.Font(None, 36)
 start_time = None
 
+
+from AIModel import RandomAgent, Action
+AI_mode = True
+model = RandomAgent()
+
 # Game loop
 while running:
     # Close program event
@@ -160,8 +163,6 @@ while running:
 
     # Check for a pause
     if not pause:
-        # Check input and act accordingly
-        keys = pygame.key.get_pressed()
         rad = math.radians(player_angle) # Angle in radians
         player_velocity *= (1 - friction * dt)
         if player_velocity > -0.5:
@@ -169,23 +170,43 @@ while running:
         dist = player_velocity * dt # The distance traveled
         player_pos.y += dist * math.cos(rad) # Change y position
         player_pos.x += dist * math.sin(rad) # Change x position
-        if keys[pygame.K_UP]:
-            player_velocity -= player_acceleration * dt # accelerate
-            player_velocity = max(-player_max_velocity, player_velocity) # max velocity is
-            if not start_time:
-                start_time = pygame.time.get_ticks()
-        if keys[pygame.K_DOWN]:
-            player_velocity += player_deceleration * dt
-            player_velocity = min(0, player_velocity)
         if abs(player_velocity) > 5:
             player_velocity *= 0.999  # tiny stabilizer
 
         turn_speed = 180  # degrees per second at low speed
         speed_factor = 1 / (1 + abs(player_velocity) * 0.01)
-        if keys[pygame.K_LEFT]:
-            player_angle += turn_speed * speed_factor * dt
-        if keys[pygame.K_RIGHT]:
-            player_angle -= turn_speed * speed_factor * dt
+
+        if AI_mode:
+            action = model.act()
+            if action[1] == Action.accelerate:
+                player_velocity -= player_acceleration * dt  # accelerate
+                player_velocity = max(-player_max_velocity, player_velocity)  # max velocity is
+                if not start_time:
+                    start_time = pygame.time.get_ticks()
+            elif action[1] == Action.decelerate:
+                player_velocity += player_deceleration * dt
+                player_velocity = min(0, player_velocity)
+            if action[0] == Action.left:
+                player_angle += turn_speed * speed_factor * dt
+            elif action[0] == Action.right:
+                player_angle -= turn_speed * speed_factor * dt
+        else:
+            # Check input and act accordingly
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_UP]:
+                player_velocity -= player_acceleration * dt # accelerate
+                player_velocity = max(-player_max_velocity, player_velocity) # max velocity is
+                if not start_time:
+                    start_time = pygame.time.get_ticks()
+            if keys[pygame.K_DOWN]:
+                player_velocity += player_deceleration * dt
+                player_velocity = min(0, player_velocity)
+
+            if keys[pygame.K_LEFT]:
+                player_angle += turn_speed * speed_factor * dt
+            if keys[pygame.K_RIGHT]:
+                player_angle -= turn_speed * speed_factor * dt
+
         player_angle %= 360
 
         if out_of_bounds(player_pos):
