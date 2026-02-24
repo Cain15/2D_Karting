@@ -14,6 +14,19 @@ def get_tile_pos(pygame_pos):
     y = math.floor(pygame_pos.y / TILE_SIZE)
     return x,y
 
+def out_of_bounds(pygame_pos):
+    """
+    Check if the position is out of bounds
+    :param pygame_pos: The positon to be checked
+    :return: true if out of bounds, false if not
+    """
+    if pygame_pos.x < 0 or pygame_pos.x > screen_width:
+        return True
+    if pygame_pos.y < 0 or pygame_pos.y > screen_height:
+        return True
+    return False
+
+
 # Screen size
 screen_width = 1600
 screen_height = 960
@@ -70,17 +83,16 @@ def reset():
     """
     Reset the Player and Game state, pause 3 seconds
     """
-    global player_velocity, player_angle, player_pos, seen_finish, prev_tile, amount_warnings, pause, tiles_visited, start_time, message
+    global player_velocity, player_angle, player_pos, seen_finish, prev_tile, amount_warnings, pause, tiles_visited, start_time
     player_velocity = 0
     player_angle = 90
-    player_pos = pygame.Vector2(finish_tile[0] * TILE_SIZE, finish_tile[1] * TILE_SIZE + TILE_SIZE / 2)
+    player_pos = pygame.Vector2((finish_tile[0]+1) * TILE_SIZE, finish_tile[1] * TILE_SIZE + TILE_SIZE / 2)
     tiles_visited = []
     seen_finish = False
     start_time = None
     pause = 3
     prev_tile = None
     amount_warnings = 0
-    message = ""
 
 # Make the track
 track_surface = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
@@ -156,33 +168,38 @@ while running:
         if keys[pygame.K_RIGHT]:
             player_angle -= 3
 
-        cur_tile = get_tile_pos(player_pos)
-        cur_type = track[cur_tile[1]][cur_tile[0]]
+        if out_of_bounds(player_pos):
+            dsq = True
+            message = "Your car exploded! You died! :( "
+            reset()
+        else:
+            cur_tile = get_tile_pos(player_pos)
+            cur_type = track[cur_tile[1]][cur_tile[0]]
 
-        if cur_tile != prev_tile:
-            prev_tile = cur_tile
-            if cur_tile not in tiles_visited and cur_type != Tile.GRASS:
-                tiles_visited.append(cur_tile)
-                print(len(tiles_visited))
-            if cur_tile == finish_tile:
-                if not seen_finish:
-                    seen_finish = True
-                elif len(tiles_visited) < min_visited_tiles:
-                    dsq = True
-                else:
+            if cur_tile != prev_tile:
+                prev_tile = cur_tile
+                if cur_tile not in tiles_visited and cur_type != Tile.GRASS:
+                    tiles_visited.append(cur_tile)
+                if cur_tile == finish_tile:
+                    if not seen_finish:
+                        seen_finish = True
+                    elif len(tiles_visited) < min_visited_tiles:
+                        dsq = True
+                    else:
 
-                    lap_times.append(pygame.time.get_ticks() - start_time + amount_warnings * 5000)
-                    lap_times.sort()
-                    lap_times = lap_times[:5]
-                    reset()
-            if cur_type == Tile.GRASS:
-                amount_warnings += 1
-                if amount_warnings == 3:
-                    dsq = True
+                        lap_times.append(pygame.time.get_ticks() - start_time + amount_warnings * 5000)
+                        lap_times.sort()
+                        lap_times = lap_times[:5]
+                        reset()
+                if cur_type == Tile.GRASS:
+                    amount_warnings += 1
+                    if amount_warnings == 3:
+                        dsq = True
 
         if dsq:
             dsq = False
-            message = "Lap INVALIDATED: "
+            if not message:
+                message = "Lap INVALIDATED: "
             reset()
         else:
             if start_time:
@@ -196,7 +213,9 @@ while running:
     else:
         pause = max(0, pause - dt)
         pause_text = font.render(f"{message} {math.ceil(pause)}", True, (255, 255, 255))
-        screen.blit(pause_text, (screen_width/2 - pause_text.get_width()/2, screen_height/2))
+        screen.blit(pause_text, (screen_width/2 - pause_text.get_width()/2 + 100, screen_height/2 - 100))
+        if pause == 0:
+            message = ""
 
     # Render lap times
     y = 10
