@@ -37,6 +37,67 @@ def write_laptime(laptime, dsq = False):
         f.write(text)
 
 
+def is_boundary(tile_type: Tile, movement_dir: str) -> bool:
+    """
+    Return True if the tile is considered a boundary for the ray moving in movement_dir.
+    """
+    # Straights
+    if tile_type == Tile.STRAIGHT_UP and movement_dir in ["LEFT", "RIGHT", "UP"]:
+        return True
+    if tile_type == Tile.STRAIGHT_DOWN and movement_dir in ["LEFT", "RIGHT", "DOWN"]:
+        return True
+    if (tile_type == Tile.STRAIGHT_LEFT or tile_type == Tile.FINISH_LINE) and movement_dir in ["UP", "DOWN", "RIGHT"]:
+        return True
+    if tile_type == Tile.STRAIGHT_RIGHT and movement_dir in ["UP", "DOWN", "LEFT"]:
+        return True
+
+    if tile_type == Tile.CORNER_DOWN_RIGHT and movement_dir in ["DOWN", "LEFT"]:
+        return True
+    if tile_type == Tile.CORNER_DOWN_LEFT and movement_dir in ["DOWN", "RIGHT"]:
+        return True
+    if tile_type == Tile.CORNER_UP_RIGHT and movement_dir in ["UP", "LEFT"]:
+        return True
+    if tile_type == Tile.CORNER_UP_LEFT and movement_dir in ["UP", "RIGHT"]:
+        return True
+
+
+    return False  # Otherwise, tile is "passable" in ray direction
+
+def ray_trace_bound(angle):
+    ray = player_pos.copy()
+    ray_rad = math.radians(-player_angle + angle)
+    direction = pygame.Vector2(math.sin(ray_rad), -math.cos(ray_rad))
+    prev_ray_tile = get_tile_pos(ray)
+    ray_tile_type = track[prev_ray_tile[1]][prev_ray_tile[0]]
+    step = 1.0
+    boundary_hit = False
+    while not boundary_hit:
+        ray += direction * step
+        if out_of_bounds(ray):
+            boundary_hit = True
+        else:
+            ray_tile = get_tile_pos(ray)
+            if ray_tile != prev_ray_tile:
+                movement_dir = None
+                if ray_tile[0] > prev_ray_tile[0]:
+                    movement_dir = "RIGHT"
+                elif ray_tile[0] < prev_ray_tile[0]:
+                    movement_dir = "LEFT"
+                elif ray_tile[1] > prev_ray_tile[1]:
+                    movement_dir = "DOWN"
+                elif ray_tile[1] < prev_ray_tile[1]:
+                    movement_dir = "UP"
+
+                if is_boundary(ray_tile_type, movement_dir):
+                    boundary_hit = True
+                else:
+                    prev_ray_tile = ray_tile
+                    ray_tile_type = track[ray_tile[1]][ray_tile[0]]
+                    if ray_tile_type == Tile.GRASS:
+                        boundary_hit = True
+    return ray
+
+
 # Screen size
 screen_width = 1600
 screen_height = 960
@@ -55,10 +116,12 @@ tiles_y = 12
 finish_tile = (16,10)
 
 # Player properties
+offset_angle = 180
 player_pos = pygame.Vector2((finish_tile[0]+1)*TILE_SIZE, finish_tile[1]*TILE_SIZE + TILE_SIZE/2)
 player_angle = 90
 player = pygame.image.load("assets/player.png")
 player = pygame.transform.scale(player, (20,40))
+player = pygame.transform.rotate(player, offset_angle)
 friction = 0.1
 player_acceleration = 55
 player_deceleration = 108
@@ -142,7 +205,7 @@ start_time = None
 
 
 from AIModel import RandomAgent, Action
-AI_mode = True
+AI_mode = False
 model = RandomAgent()
 
 # Game loop
@@ -175,6 +238,13 @@ while running:
 
         turn_speed = 180  # degrees per second at low speed
         speed_factor = 1 / (1 + abs(player_velocity) * 0.01)
+
+        # Get the inputs for AI
+        # Inputs: player_velocity, player_angle, 10 Track edge points
+        # Calculate the track edge points
+        for i in range(11):
+            cur_ray = ray_trace_bound(-100 + i * 20)
+            pygame.draw.line(screen, (255, 255, 255), player_pos, cur_ray, 2)
 
         if AI_mode:
             action = model.act()
