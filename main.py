@@ -67,10 +67,12 @@ def ray_trace_bound(angle):
     ray = player_pos.copy()
     ray_rad = math.radians(-player_angle + angle)
     direction = pygame.Vector2(math.sin(ray_rad), -math.cos(ray_rad))
+    direction = direction.normalize()
     prev_ray_tile = get_tile_pos(ray)
     ray_tile_type = track[prev_ray_tile[1]][prev_ray_tile[0]]
     step = 1.0
     boundary_hit = False
+    movement_dir = None
     while not boundary_hit:
         ray += direction * step
         if out_of_bounds(ray):
@@ -95,6 +97,17 @@ def ray_trace_bound(angle):
                     ray_tile_type = track[ray_tile[1]][ray_tile[0]]
                     if ray_tile_type == Tile.GRASS:
                         boundary_hit = True
+    dx, dy = direction.x, direction.y
+    correction_pixels = 7
+    t = 0
+    if movement_dir in ["LEFT", "RIGHT"]:
+        # Need vertical (Y) correction
+        t = correction_pixels / abs(dx)
+
+    elif movement_dir in ["UP", "DOWN"]:
+        # Need horizontal (X) correction
+        t = correction_pixels / abs(dy)
+    ray -= direction * t
     return ray
 
 
