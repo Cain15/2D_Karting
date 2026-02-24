@@ -68,7 +68,7 @@ def reset():
     """
     Reset the Player and Game state, pause 3 seconds
     """
-    global player_velocity, player_angle, player_pos, seen_finish, prev_tile, amount_warnings, pause, tiles_visited, start_time
+    global player_velocity, player_angle, player_pos, seen_finish, prev_tile, amount_warnings, pause, tiles_visited, start_time, message
     player_velocity = 0
     player_angle = 90
     player_pos = pygame.Vector2(finish_tile[0] * TILE_SIZE, finish_tile[1] * TILE_SIZE + TILE_SIZE / 2)
@@ -78,6 +78,7 @@ def reset():
     pause = 3
     prev_tile = None
     amount_warnings = 0
+    message = ""
 
 # Make the track
 track_surface = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
@@ -164,29 +165,56 @@ while running:
                 elif len(tiles_visited) < min_visited_tiles:
                     dsq = True
                 else:
-                    lap_times.append(pygame.time.get_ticks() - start_time)
+
+                    lap_times.append(pygame.time.get_ticks() - start_time + amount_warnings * 5000)
+                    lap_times.sort()
+                    lap_times = lap_times[:5]
                     reset()
+            if cur_type == Tile.GRASS:
+                amount_warnings += 1
+                if amount_warnings == 3:
+                    dsq = True
 
         if dsq:
             dsq = False
             message = "Lap INVALIDATED: "
             reset()
-
-
-        if cur_type == Tile.GRASS:
-            amount_warnings += 1
-        if start_time:
-            elapsed_ms = pygame.time.get_ticks() - start_time
-            elapsed_sec = elapsed_ms // 1000
-            elapsed_min = elapsed_sec // 60
-            elapsed_sec = elapsed_sec % 60
-            elapsed_ms = elapsed_ms % 1000
-            timer_text = font.render(f"Time: {elapsed_min}:{elapsed_sec}:{elapsed_ms}", True, (255, 255, 255))
-            screen.blit(timer_text, (screen_width/2 - timer_text.get_width()/2, 10))  # top-left corner
+        else:
+            if start_time:
+                elapsed_ms = pygame.time.get_ticks() - start_time
+                elapsed_sec = elapsed_ms // 1000
+                elapsed_min = elapsed_sec // 60
+                elapsed_sec = elapsed_sec % 60
+                elapsed_ms = elapsed_ms % 1000
+                timer_text = font.render(f"Time: {elapsed_min}:{elapsed_sec}:{elapsed_ms}", True, (255, 255, 255))
+                screen.blit(timer_text, (screen_width/2 - timer_text.get_width()/2, 10))  # top-left corner
     else:
         pause = max(0, pause - dt)
         pause_text = font.render(f"{message} {math.ceil(pause)}", True, (255, 255, 255))
         screen.blit(pause_text, (screen_width/2 - pause_text.get_width()/2, screen_height/2))
+
+    # Render lap times
+    y = 10
+
+    title = font.render("Lap times:", True, (255, 255, 255))
+    screen.blit(title, (1200, y))
+    y += 30  # move down
+
+    for i in range(len(lap_times)):
+        milliseconds = lap_times[i] % 1000
+        seconds = (lap_times[i] // 1000) % 60
+        minutes = lap_times[i] // 1000 // 60
+
+        line = f"{i+1}. {minutes}:{seconds:02}:{milliseconds:03}"
+        rendered = font.render(line, True, (255, 255, 255))
+        screen.blit(rendered, (1200, y))
+
+        y += 25  # spacing between lines
+
+    # Render penalties
+    penalty_text = font.render(f"({amount_warnings} warnings), Penalty: {amount_warnings * 5}s", True, (255, 255, 255))
+    if amount_warnings > 0:
+        screen.blit(penalty_text, (10, 10))
 
     pygame.display.flip()
     dt = clock.tick(60) / 1000
