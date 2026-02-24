@@ -26,6 +26,16 @@ def out_of_bounds(pygame_pos):
         return True
     return False
 
+def write_laptime(laptime, dsq = False):
+    seconds = laptime / 1000
+    text = str(seconds)
+    if dsq:
+        text += ",invalid\n"
+    else:
+        text += ",valid\n"
+    with open("laptime.txt", "a") as f:
+        f.write(text)
+
 
 # Screen size
 screen_width = 1600
@@ -49,9 +59,9 @@ player_pos = pygame.Vector2((finish_tile[0]+1)*TILE_SIZE, finish_tile[1]*TILE_SI
 player_angle = 90
 player = pygame.image.load("assets/player.png")
 player = pygame.transform.scale(player, (20,40))
-friction = 9
-player_acceleration = 45 + friction
-player_deceleration = 108 - friction
+friction = 0.1
+player_acceleration = 55
+player_deceleration = 108
 player_velocity = 0
 player_max_velocity = 270
 
@@ -78,6 +88,8 @@ dsq = False
 
 # Keep lap times
 lap_times = []
+
+
 
 def reset():
     """
@@ -151,7 +163,9 @@ while running:
         # Check input and act accordingly
         keys = pygame.key.get_pressed()
         rad = math.radians(player_angle) # Angle in radians
-        player_velocity = min(0, player_velocity + friction * dt)
+        player_velocity *= (1 - friction * dt)
+        if player_velocity > -0.5:
+            player_velocity = 0
         dist = player_velocity * dt # The distance traveled
         player_pos.y += dist * math.cos(rad) # Change y position
         player_pos.x += dist * math.sin(rad) # Change x position
@@ -163,15 +177,20 @@ while running:
         if keys[pygame.K_DOWN]:
             player_velocity += player_deceleration * dt
             player_velocity = min(0, player_velocity)
+        if abs(player_velocity) > 5:
+            player_velocity *= 0.999  # tiny stabilizer
+
+        turn_speed = 180  # degrees per second at low speed
+        speed_factor = 1 / (1 + abs(player_velocity) * 0.01)
         if keys[pygame.K_LEFT]:
-            player_angle += 3
+            player_angle += turn_speed * speed_factor * dt
         if keys[pygame.K_RIGHT]:
-            player_angle -= 3
+            player_angle -= turn_speed * speed_factor * dt
+        player_angle %= 360
 
         if out_of_bounds(player_pos):
             dsq = True
             message = "Your car exploded! You died! :( "
-            reset()
         else:
             cur_tile = get_tile_pos(player_pos)
             cur_type = track[cur_tile[1]][cur_tile[0]]
@@ -190,6 +209,7 @@ while running:
                         lap_times.append(pygame.time.get_ticks() - start_time + amount_warnings * 5000)
                         lap_times.sort()
                         lap_times = lap_times[:5]
+                        write_laptime(pygame.time.get_ticks() - start_time + amount_warnings * 5000)
                         reset()
                 if cur_type == Tile.GRASS:
                     amount_warnings += 1
@@ -200,6 +220,7 @@ while running:
             dsq = False
             if not message:
                 message = "Lap INVALIDATED: "
+            write_laptime(pygame.time.get_ticks() - start_time, True)
             reset()
         else:
             if start_time:
