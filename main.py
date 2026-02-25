@@ -64,6 +64,7 @@ def is_boundary(tile_type: Tile, movement_dir: str) -> bool:
     return False  # Otherwise, tile is "passable" in ray direction
 
 def ray_trace_bound(angle):
+    MAX_RAY_DIST = 200  # pixels
     ray = player_pos.copy()
     ray_rad = math.radians(-player_angle + angle)
     direction = pygame.Vector2(math.sin(ray_rad), -math.cos(ray_rad))
@@ -71,10 +72,12 @@ def ray_trace_bound(angle):
     prev_ray_tile = get_tile_pos(ray)
     ray_tile_type = track[prev_ray_tile[1]][prev_ray_tile[0]]
     step = 1.0
+    steps = 0
     boundary_hit = False
     movement_dir = None
-    while not boundary_hit:
+    while not boundary_hit and steps < MAX_RAY_DIST:
         ray += direction * step
+        steps += 1
         if out_of_bounds(ray):
             boundary_hit = True
         else:
@@ -111,18 +114,20 @@ def ray_trace_bound(angle):
     return ray
 
 def get_reward(current_tile, previous_tile):
-    if current_tile == previous_tile:
-        return 0
+    rew = player_velocity * 0.1
     if track[current_tile[1]][current_tile[0]] == Tile.GRASS:
-        return -0.5
+        return -5.0
     if track[current_tile[1]][current_tile[0]] == Tile.FINISH_LINE and seen_finish:
         if len(tiles_visited) < min_visited_tiles:
             return -1
         else:
-            return 10
+            return 3
     if current_tile not in tiles_visited:
-        return 1
-    return -1
+        rew += 2.0
+
+    if player_velocity < 0.1:
+        rew -= 0.1
+    return rew
 
 
 
@@ -154,7 +159,7 @@ friction = 0.1
 player_acceleration = 55
 player_deceleration = 108
 player_velocity = 0
-player_max_velocity = 270
+player_max_velocity = 240
 
 # Track generation
 track = read_track('track1.tr')
@@ -191,7 +196,7 @@ def reset():
     tiles_visited = []
     seen_finish = False
     start_time = None
-    pause = 3
+    pause = 3 if not AI_mode else 0.1
     prev_tile = None
     amount_warnings = 0
 
@@ -232,9 +237,9 @@ font = pygame.font.Font(None, 36)
 start_time = None
 
 
-from AIModel import QAgent, Action
+from AIModel import DQNAgent, Action
 AI_mode = True
-model = QAgent()
+model = DQNAgent()
 prev_state = None
 prev_action = None
 
@@ -280,17 +285,26 @@ while running:
                 # Inputs: player_velocity, player_angle, 10 Track edge points
                 # Calculate the track edge points
                 v_norm = player_velocity / player_max_velocity
-                theta_norm = player_angle / 360
-                features = [v_norm, theta_norm]
-                screen_diag = math.hypot(screen_width, screen_height)
-                for i in range(11):
-                    cur_ray = ray_trace_bound(-100 + i * 20)
+                theta = math.radians(player_angle)
+                features = [v_norm, math.sin(theta), math.cos(theta)]
+                for angle in [-90, -60, -30, 0, 30, 60, 90]:
+                    cur_ray = ray_trace_bound(angle)
                     # pygame.draw.line(screen, (255, 255, 255), player_pos, cur_ray, 2)
-                    features.append(player_pos.distance_to(cur_ray)/screen_diag)
+                    features.append(player_pos.distance_to(cur_ray)/200)
 
                 if prev_state:
                     reward = get_reward(cur_tile, prev_tile)
-                    model.update(prev_state, prev_action, reward, features)
+                    rays = features[3:]
+                    front_ray = rays[3]
+                    side_rays = min(rays[2], rays[4])
+                    if front_ray < 0.4:
+                        dist_factor = (0.4 - front_ray) / 0.4
+                        penalty = (dist_factor ** 2) * v_norm * 2.0
+                        reward -= penalty
+                    if side_rays < 0.3 and v_norm > 0.5:
+                        reward -= (v_norm - 0.5) * 1.5
+                    done = cur_type == Tile.GRASS
+                    model.update(prev_state, prev_action, reward, features, done)
 
                 act = model.act(features)
                 action = Action(act[0]), Action(act[1])
@@ -306,9 +320,11 @@ while running:
                     player_velocity += player_deceleration * dt
                     player_velocity = min(0, player_velocity)
                 if action[0] == Action.left:
-                    player_angle += turn_speed * speed_factor * dt
+                    if abs(player_velocity) > 0:
+                        player_angle += turn_speed * speed_factor * dt
                 elif action[0] == Action.right:
-                    player_angle -= turn_speed * speed_factor * dt
+                    if abs(player_velocity) > 0:
+                        player_angle -= turn_speed * speed_factor * dt
             else:
                 # Check input and act accordingly
                 keys = pygame.key.get_pressed()
@@ -322,9 +338,11 @@ while running:
                     player_velocity = min(0, player_velocity)
 
                 if keys[pygame.K_LEFT]:
-                    player_angle += turn_speed * speed_factor * dt
+                    if abs(player_velocity) > 0:
+                        player_angle += turn_speed * speed_factor * dt
                 if keys[pygame.K_RIGHT]:
-                    player_angle -= turn_speed * speed_factor * dt
+                    if abs(player_velocity) > 0:
+                        player_angle -= turn_speed * speed_factor * dt
 
             player_angle %= 360
             if cur_tile != prev_tile:
@@ -345,9 +363,11 @@ while running:
                         reset()
                 if cur_type == Tile.GRASS:
                     amount_warnings += 1
-                    if amount_warnings == 3:
+                    if amount_warnings == 3 or (AI_mode and amount_warnings == 1):
                         dsq = True
-
+        if start_time:
+            if (pygame.time.get_ticks() - start_time) // 1000 > 300:
+                dsq = True
         if dsq:
             dsq = False
             if not message:
