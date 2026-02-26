@@ -114,7 +114,7 @@ def ray_trace_bound(angle):
     return ray
 
 def get_reward(current_tile, previous_tile):
-    rew = abs(player_velocity) * 0.2
+    rew = abs(player_velocity) * 0.0002
     if track[current_tile[1]][current_tile[0]] == Tile.GRASS:
         return -5.0
     if track[current_tile[1]][current_tile[0]] == Tile.FINISH_LINE and seen_finish:
