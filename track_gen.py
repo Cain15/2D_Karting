@@ -46,4 +46,40 @@ def read_track(file):
             track.append(row)
     return track
 
-read_track("track1.tr")
+def track_walk(track, start):
+    visited = set()
+    order = []
+    current = start
+    prev = None
+
+    while True:
+        order.append(current)
+        visited.add(current)
+
+        if current == start:
+            neighbors = [(current[0]-1, current[1])]
+        else:
+            neighbors = [(current[0]-1, current[1]), (current[0]+1, current[1]), (current[0], current[1]-1), (current[0], current[1]+1)]
+            i = 0
+            while i < len(neighbors):
+                if track[neighbors[i][1]][neighbors[i][0]] == Tile.GRASS:
+                    neighbors.remove(neighbors[i])
+                    i = i - 1
+                i += 1
+
+        # remove the tile we came from
+        if prev in neighbors:
+            neighbors.remove(prev)
+
+        if not neighbors:
+            break
+
+        next_tile = neighbors[0]
+        prev = current
+        current = next_tile
+
+        if current == start:
+            break
+
+    return order
+

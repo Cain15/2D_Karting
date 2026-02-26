@@ -149,8 +149,8 @@ class DQNAgent:
         self.gamma = 0.99
         self.batch_size = 128
 
-        self.epsilon = 1.0
-        self.step = 0.0000011
+        self.epsilon = 0.3
+        self.step = 0.000001
         self.epsilon_min = 0.05
 
         self.update_counter = 0

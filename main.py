@@ -1,7 +1,7 @@
 import pygame
 import math
 import random
-from track_gen import read_track, Tile
+from track_gen import read_track, Tile, track_walk
 import time
 
 def get_tile_pos(pygame_pos):
@@ -114,16 +114,28 @@ def ray_trace_bound(angle):
     return ray
 
 def get_reward(current_tile, previous_tile):
-    rew = abs(player_velocity) * 0.0002
     if track[current_tile[1]][current_tile[0]] == Tile.GRASS:
-        return -5.0
-    if track[current_tile[1]][current_tile[0]] == Tile.FINISH_LINE and seen_finish:
-        if len(tiles_visited) < min_visited_tiles:
-            return -1
-        else:
-            rew += 3
-    if current_tile not in tiles_visited:
-        rew += 2.0
+        return -50.0
+    if previous_tile is None:
+        return 0.0
+    try:
+        cur_idx = tile_index[current_tile]
+        prev_idx = tile_index[previous_tile]
+    except ValueError:
+        # In case something weird happens
+        print("Something went wrong", current_tile, previous_tile)
+        return -50.0
+    track_len = len(tile_order)
+    delta = cur_idx - prev_idx
+
+    # Wrap-around correction
+    if delta < -track_len / 2:
+        delta += track_len
+    elif delta > track_len / 2:
+        delta -= track_len
+    rew = float(delta)
+    rew -= 0.001
+
     return rew
 
 
@@ -171,6 +183,8 @@ finish = pygame.transform.scale(finish, (80,80))
 seen_finish = False
 prev_tile = None
 min_visited_tiles = 68
+tile_order = track_walk(track, (17,10))
+tile_index = {tile: i for i, tile in enumerate(tile_order)}
 tiles_visited = []
 amount_warnings = 0
 
@@ -237,7 +251,6 @@ start_time = None
 from AIModel import DQNAgent, Action
 AI_mode = True
 model = DQNAgent()
-model.load()
 prev_state = None
 prev_action = None
 
@@ -247,7 +260,6 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-
     # Set background color and draw track on screen
     screen.fill((116, 179, 74))
     screen.blit(track_surface, (0,0))
@@ -292,16 +304,8 @@ while running:
 
                 if prev_state:
                     reward = get_reward(cur_tile, prev_tile)
-                    rays = features[3:]
-                    front_ray = rays[3]
-                    side_rays = min(rays[2], rays[4])
-                    if front_ray < 0.4:
-                        dist_factor = (0.4 - front_ray) / 0.4
-                        penalty = (dist_factor ** 2) * v_norm * 2.0
-                        reward -= penalty
-                    if side_rays < 0.3 and v_norm > 0.5:
-                        reward -= (v_norm - 0.5) * 1.5
-                    done = cur_type == Tile.GRASS
+                    lap_done = cur_tile == finish_tile and seen_finish and len(tiles_visited) >= min_visited_tiles
+                    done = cur_type == Tile.GRASS or lap_done
                     model.update(prev_state, prev_action, reward, features, done)
 
                 act = model.act(features)
