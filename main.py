@@ -114,19 +114,16 @@ def ray_trace_bound(angle):
     return ray
 
 def get_reward(current_tile, previous_tile):
-    rew = player_velocity * 0.1
+    rew = abs(player_velocity) * 0.2
     if track[current_tile[1]][current_tile[0]] == Tile.GRASS:
         return -5.0
     if track[current_tile[1]][current_tile[0]] == Tile.FINISH_LINE and seen_finish:
         if len(tiles_visited) < min_visited_tiles:
             return -1
         else:
-            return 3
+            rew += 3
     if current_tile not in tiles_visited:
         rew += 2.0
-
-    if player_velocity < 0.1:
-        rew -= 0.1
     return rew
 
 
@@ -240,6 +237,7 @@ start_time = None
 from AIModel import DQNAgent, Action
 AI_mode = True
 model = DQNAgent()
+model.load()
 prev_state = None
 prev_action = None
 
@@ -365,9 +363,9 @@ while running:
                     amount_warnings += 1
                     if amount_warnings == 3 or (AI_mode and amount_warnings == 1):
                         dsq = True
-        if start_time:
-            if (pygame.time.get_ticks() - start_time) // 1000 > 300:
-                dsq = True
+        # if start_time:
+        #     if (pygame.time.get_ticks() - start_time) // 1000 > 300:
+        #         dsq = True
         if dsq:
             dsq = False
             if not message:
