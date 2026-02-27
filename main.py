@@ -63,12 +63,11 @@ def is_boundary(tile_type: Tile, movement_dir: str) -> bool:
 
     return False  # Otherwise, tile is "passable" in ray direction
 
-def ray_trace_bound(angle):
+def ray_trace_bound(player, angle):
     MAX_RAY_DIST = 200  # pixels
-    ray = player_pos.copy()
-    ray_rad = math.radians(-player_angle + angle)
+    ray = player.player_pos.copy()
+    ray_rad = math.radians(-player.player_angle + angle)
     direction = pygame.Vector2(math.sin(ray_rad), -math.cos(ray_rad))
-    direction = direction.normalize()
     prev_ray_tile = get_tile_pos(ray)
     ray_tile_type = track[prev_ray_tile[1]][prev_ray_tile[0]]
     step = 1.0
@@ -133,7 +132,7 @@ def get_reward(current_tile, previous_tile):
         delta += track_len
     elif delta > track_len / 2:
         delta -= track_len
-    rew = float(delta)
+    rew = float(delta) * 2
     rew -= 0.001
 
     return rew
@@ -158,58 +157,49 @@ tiles_y = 12
 finish_tile = (16,10)
 
 # Player properties
+from Player import Player
 offset_angle = 180
 player_pos = pygame.Vector2((finish_tile[0]+1)*TILE_SIZE, finish_tile[1]*TILE_SIZE + TILE_SIZE/2)
-player_angle = 90
-player = pygame.image.load("assets/player.png")
+player = pygame.image.load("assets/player.png").convert_alpha()
 player = pygame.transform.scale(player, (20,40))
 player = pygame.transform.rotate(player, offset_angle)
 friction = 0.1
-player_acceleration = 55
-player_deceleration = 108
-player_velocity = 0
-player_max_velocity = 240
 
 # Track generation
 track = read_track('track1.tr')
-corner = pygame.image.load('assets/corner.png')
+corner = pygame.image.load('assets/corner.png').convert_alpha()
 corner = pygame.transform.scale(corner, (80,80))
-straight = pygame.image.load('assets/straight.png')
+straight = pygame.image.load('assets/straight.png').convert_alpha()
 straight = pygame.transform.scale(straight, (80,80))
-finish = pygame.image.load('assets/finish.png')
+finish = pygame.image.load('assets/finish.png').convert_alpha()
 finish = pygame.transform.scale(finish, (80,80))
 
 # Progress tracking
-seen_finish = False
-prev_tile = None
 min_visited_tiles = 68
 tile_order = track_walk(track, (17,10))
 tile_index = {tile: i for i, tile in enumerate(tile_order)}
-tiles_visited = []
-amount_warnings = 0
 
 # Game state variables
 pause = 0
 message = ""
-dsq = False
 
 # Keep lap times
 lap_times = []
 
-def reset():
+def reset(play):
     """
     Reset the Player and Game state, pause 3 seconds
     """
-    global player_velocity, player_angle, player_pos, seen_finish, prev_tile, amount_warnings, pause, tiles_visited, start_time
-    player_velocity = 0
-    player_angle = 90
-    player_pos = pygame.Vector2((finish_tile[0]+1) * TILE_SIZE, finish_tile[1] * TILE_SIZE + TILE_SIZE / 2)
-    tiles_visited = []
-    seen_finish = False
-    start_time = None
-    pause = 3 if not AI_mode else 0.1
-    prev_tile = None
-    amount_warnings = 0
+    global pause
+    play.player_velocity = 0
+    play.player_angle = 90
+    play.player_pos = pygame.Vector2((finish_tile[0] + 1) * TILE_SIZE, finish_tile[1] * TILE_SIZE + TILE_SIZE / 2)
+    play.tiles_visited = []
+    play.seen_finish = False
+    play.start_time = None
+    pause = 3 if not AI_mode else 0
+    play.prev_tile = None
+    play.amount_warnings = 0
 
 # Make the track
 track_surface = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
@@ -245,7 +235,6 @@ for x in range(tiles_x):
 
 # Load font
 font = pygame.font.Font(None, 36)
-start_time = None
 
 
 from AIModel import DQNAgent, Action
@@ -253,6 +242,14 @@ AI_mode = True
 model = DQNAgent()
 prev_state = None
 prev_action = None
+if AI_mode:
+    players = [Player(player_pos) for _ in range(10)]
+else:
+    players = [Player(player_pos)]
+
+fps_timer = 0
+
+rotated_cache = {}
 
 # Game loop
 while running:
@@ -265,120 +262,124 @@ while running:
     screen.blit(track_surface, (0,0))
 
     # Draw the player
-    rotated_surface = pygame.transform.rotate(player, player_angle)
-    rotated_rect = rotated_surface.get_rect(center=player_pos)
-    screen.blit(rotated_surface, rotated_rect)
+    for p in players:
+        angle_key = int(p.player_angle) % 360
+        if angle_key not in rotated_cache:
+            rotated_cache[angle_key] = pygame.transform.rotate(player, angle_key)
+        rotated_surface = rotated_cache[angle_key]
+        rotated_rect = rotated_surface.get_rect(center=p.player_pos)
+        screen.blit(rotated_surface, rotated_rect)
 
     # Check for a pause
     if not pause:
-        rad = math.radians(player_angle) # Angle in radians
-        player_velocity *= (1 - friction * dt)
-        if player_velocity > -0.5:
-            player_velocity = 0
-        dist = player_velocity * dt # The distance traveled
-        player_pos.y += dist * math.cos(rad) # Change y position
-        player_pos.x += dist * math.sin(rad) # Change x position
-        if abs(player_velocity) > 5:
-            player_velocity *= 0.999  # tiny stabilizer
+        for p in players:
+            rad = math.radians(p.player_angle) # Angle in radians
+            p.player_velocity *= (1 - friction * dt)
+            if p.player_velocity > -0.5:
+                p.player_velocity = 0
+            dist = p.player_velocity * dt # The distance traveled
+            p.player_pos.y += dist * math.cos(rad) # Change y position
+            p.player_pos.x += dist * math.sin(rad) # Change x position
+            if abs(p.player_velocity) > 5:
+                p.player_velocity *= 0.999  # tiny stabilizer
 
-        turn_speed = 180  # degrees per second at low speed
-        speed_factor = 1 / (1 + abs(player_velocity) * 0.01)
+            turn_speed = 180  # degrees per second at low speed
+            speed_factor = 1 / (1 + abs(p.player_velocity) * 0.01)
 
-        if out_of_bounds(player_pos):
-            dsq = True
-            message = "Your car exploded! You died! :( "
-        else:
-            cur_tile = get_tile_pos(player_pos)
-            cur_type = track[cur_tile[1]][cur_tile[0]]
-            if AI_mode:
-                # Get the inputs for AI
-                # Inputs: player_velocity, player_angle, 10 Track edge points
-                # Calculate the track edge points
-                v_norm = player_velocity / player_max_velocity
-                theta = math.radians(player_angle)
-                features = [v_norm, math.sin(theta), math.cos(theta)]
-                for angle in [-90, -60, -30, 0, 30, 60, 90]:
-                    cur_ray = ray_trace_bound(angle)
-                    # pygame.draw.line(screen, (255, 255, 255), player_pos, cur_ray, 2)
-                    features.append(player_pos.distance_to(cur_ray)/200)
-
-                if prev_state:
-                    reward = get_reward(cur_tile, prev_tile)
-                    lap_done = cur_tile == finish_tile and seen_finish and len(tiles_visited) >= min_visited_tiles
-                    done = cur_type == Tile.GRASS or lap_done
-                    model.update(prev_state, prev_action, reward, features, done)
-
-                act = model.act(features)
-                action = Action(act[0]), Action(act[1])
-
-                prev_state = features
-                prev_action = act
-                if action[1] == Action.accelerate:
-                    player_velocity -= player_acceleration * dt  # accelerate
-                    player_velocity = max(-player_max_velocity, player_velocity)  # max velocity is
-                    if not start_time:
-                        start_time = pygame.time.get_ticks()
-                elif action[1] == Action.decelerate:
-                    player_velocity += player_deceleration * dt
-                    player_velocity = min(0, player_velocity)
-                if action[0] == Action.left:
-                    if abs(player_velocity) > 0:
-                        player_angle += turn_speed * speed_factor * dt
-                elif action[0] == Action.right:
-                    if abs(player_velocity) > 0:
-                        player_angle -= turn_speed * speed_factor * dt
+            if out_of_bounds(p.player_pos):
+                p.dsq = True
+                message = "Your car exploded! You died! :( "
             else:
-                # Check input and act accordingly
-                keys = pygame.key.get_pressed()
-                if keys[pygame.K_UP]:
-                    player_velocity -= player_acceleration * dt # accelerate
-                    player_velocity = max(-player_max_velocity, player_velocity) # max velocity is
-                    if not start_time:
-                        start_time = pygame.time.get_ticks()
-                if keys[pygame.K_DOWN]:
-                    player_velocity += player_deceleration * dt
-                    player_velocity = min(0, player_velocity)
+                cur_tile = get_tile_pos(p.player_pos)
+                cur_type = track[cur_tile[1]][cur_tile[0]]
+                if AI_mode:
+                    # Get the inputs for AI
+                    # Inputs: player_velocity, player_angle, 10 Track edge points
+                    # Calculate the track edge points
+                    v_norm = p.player_velocity / p.player_max_velocity
+                    theta = math.radians(p.player_angle)
+                    features = [v_norm, math.sin(theta), math.cos(theta)]
+                    for angle in [-90, -45, 0, 45, 90]:
+                        cur_ray = ray_trace_bound(p, angle)
+                        # pygame.draw.line(screen, (255, 255, 255), p.player_pos, cur_ray, 2)
+                        features.append(p.player_pos.distance_to(cur_ray)/200)
 
-                if keys[pygame.K_LEFT]:
-                    if abs(player_velocity) > 0:
-                        player_angle += turn_speed * speed_factor * dt
-                if keys[pygame.K_RIGHT]:
-                    if abs(player_velocity) > 0:
-                        player_angle -= turn_speed * speed_factor * dt
+                    if prev_state:
+                        reward = get_reward(cur_tile, p.prev_tile)
+                        lap_done = cur_tile == finish_tile and p.seen_finish and len(p.tiles_visited) >= min_visited_tiles
+                        done = cur_type == Tile.GRASS or lap_done
+                        model.update(prev_state, prev_action, reward, features, done)
 
-            player_angle %= 360
-            if cur_tile != prev_tile:
-                prev_tile = cur_tile
-                if cur_tile not in tiles_visited and cur_type != Tile.GRASS:
-                    tiles_visited.append(cur_tile)
-                if cur_tile == finish_tile:
-                    if not seen_finish:
-                        seen_finish = True
-                    elif len(tiles_visited) < min_visited_tiles:
-                        dsq = True
-                    else:
+                    act = model.act(features)
+                    action = Action(act[0]), Action(act[1])
 
-                        lap_times.append(pygame.time.get_ticks() - start_time + amount_warnings * 5000)
-                        lap_times.sort()
-                        lap_times = lap_times[:5]
-                        # write_laptime(pygame.time.get_ticks() - start_time + amount_warnings * 5000)
-                        reset()
-                if cur_type == Tile.GRASS:
-                    amount_warnings += 1
-                    if amount_warnings == 3 or (AI_mode and amount_warnings == 1):
-                        dsq = True
+                    prev_state = features
+                    prev_action = act
+                    if action[1] == Action.accelerate:
+                        p.player_velocity -= p.player_acceleration * dt  # accelerate
+                        p.player_velocity = max(-p.player_max_velocity, p.player_velocity)  # max velocity is
+                        if not p.start_time:
+                            p.start_time = pygame.time.get_ticks()
+                    elif action[1] == Action.decelerate:
+                        p.player_velocity += p.player_deceleration * dt
+                        p.player_velocity = min(0, p.player_velocity)
+                    if action[0] == Action.left:
+                        if abs(p.player_velocity) > 0:
+                            p.player_angle += turn_speed * speed_factor * dt
+                    elif action[0] == Action.right:
+                        if abs(p.player_velocity) > 0:
+                            p.player_angle -= turn_speed * speed_factor * dt
+                else:
+                    # Check input and act accordingly
+                    keys = pygame.key.get_pressed()
+                    if keys[pygame.K_UP]:
+                        p.player_velocity -= p.player_acceleration * dt # accelerate
+                        p.player_velocity = max(-p.player_max_velocity, p.player_velocity) # max velocity is
+                        if not p.start_time:
+                            p.start_time = pygame.time.get_ticks()
+                    if keys[pygame.K_DOWN]:
+                        p.player_velocity += p.player_deceleration * dt
+                        p.player_velocity = min(0, p.player_velocity)
+
+                    if keys[pygame.K_LEFT]:
+                        if abs(p.player_velocity) > 0:
+                            p.player_angle += turn_speed * speed_factor * dt
+                    if keys[pygame.K_RIGHT]:
+                        if abs(p.player_velocity) > 0:
+                            p.player_angle -= turn_speed * speed_factor * dt
+
+                p.player_angle %= 360
+                if cur_tile != p.prev_tile:
+                    p.prev_tile = cur_tile
+                    if cur_tile not in p.tiles_visited and cur_type != Tile.GRASS:
+                        p.tiles_visited.append(cur_tile)
+                    if cur_tile == finish_tile:
+                        if not p.seen_finish:
+                            p.seen_finish = True
+                        elif len(p.tiles_visited) < min_visited_tiles:
+                            p.dsq = True
+                        else:
+                            lap_times.append(pygame.time.get_ticks() - p.start_time + p.amount_warnings * 5000)
+                            lap_times.sort()
+                            lap_times = lap_times[:5]
+                            # write_laptime(pygame.time.get_ticks() - start_time + amount_warnings * 5000)
+                            reset(p)
+                    if cur_type == Tile.GRASS:
+                        p.amount_warnings += 1
+                        if p.amount_warnings == 3 or (AI_mode and p.amount_warnings == 1):
+                            p.dsq = True
         # if start_time:
         #     if (pygame.time.get_ticks() - start_time) // 1000 > 300:
         #         dsq = True
-        if dsq:
-            dsq = False
-            if not message:
-                message = "Lap INVALIDATED: "
-            # write_laptime(pygame.time.get_ticks() - start_time, True)
-            reset()
+            if p.dsq:
+                p.dsq = False
+                if not message:
+                    message = "Lap INVALIDATED: "
+                # write_laptime(pygame.time.get_ticks() - start_time, True)
+                reset(p)
         else:
-            if start_time:
-                elapsed_ms = pygame.time.get_ticks() - start_time
+            if players[0].start_time:
+                elapsed_ms = pygame.time.get_ticks() - players[0].start_time
                 elapsed_sec = elapsed_ms // 1000
                 elapsed_min = elapsed_sec // 60
                 elapsed_sec = elapsed_sec % 60
@@ -411,11 +412,15 @@ while running:
         y += 25  # spacing between lines
 
     # Render penalties
-    penalty_text = font.render(f"[{amount_warnings} warning(s)], Penalty: {amount_warnings * 5}s", True, (255, 255, 255))
-    if amount_warnings > 0:
+    penalty_text = font.render(f"[{players[0].amount_warnings} warning(s)], Penalty: {players[0].amount_warnings * 5}s", True, (255, 255, 255))
+    if players[0].amount_warnings > 0:
         screen.blit(penalty_text, (10, 10))
 
     pygame.display.flip()
     dt = clock.tick(60) / 1000
+    fps_timer += dt
+    if fps_timer >= 1.0:
+        print(clock.get_fps())
+        fps_timer = 0
 
 pygame.quit()

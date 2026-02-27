@@ -44,7 +44,7 @@ class DQN(nn.Module):
         return self.net(x)
 
 class ReplayBuffer:
-    def __init__(self, capacity=500000):
+    def __init__(self, capacity=100000):
         self.buffer = deque(maxlen=capacity)
 
     def push(self, s, a, r, ns, done):
@@ -70,7 +70,7 @@ class DQNAgent:
                         (1,2), (1,3), (1,4),
                         (2,2), (2,3), (2,4)]
 
-        self.state_dim = 10
+        self.state_dim = 8
         self.action_dim = 9
 
         self.q_net = DQN(self.state_dim, self.action_dim)
@@ -84,14 +84,17 @@ class DQNAgent:
         self.gamma = 0.99
         self.batch_size = 128
 
-        self.epsilon = 0.3
-        self.step = 0.000001
-        self.epsilon_min = 0.05
+        self.epsilon = 0.1
+        self.step = 0.0
+        self.epsilon_min = 0.1
 
         self.update_counter = 0
 
         self.last_save_time = time.time()
         self.save_interval = 300  # 5 minutes
+
+        self.count = 0
+        self.train_frequency = 4
 
     def q_value(self, state):
         with torch.no_grad():
@@ -121,6 +124,11 @@ class DQNAgent:
 
         if len(self.buffer) < self.batch_size:
             return
+
+        self.count += 1
+        if self.count != self.train_frequency:
+            return
+        self.count = 0
 
         states, actions, rewards, next_states, dones = self.buffer.sample(self.batch_size)
 
