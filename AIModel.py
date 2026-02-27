@@ -23,75 +23,10 @@ class Action(enum.Enum):
     decelerate = 3
     accelerate = 4
 
-
-class RandomAgent:
-    def __init__(self):
-        pass
-    def act(self, state):
-        x = random.randint(0,2)
-        y = random.randint(2,4)
-        return x,y
-    def update(self, state, action, reward, next_state):
-        pass
-
-weights = np.array([
-     0.02166977,  0.05718258,  0.01427622, -0.11485571, -0.08752395,
-    -0.08275275, -0.03315345, -0.06700488, -0.08340994, -0.01347458,
-    -0.08691398, -0.08482   , -0.08690997, -0.08536612, -0.08494104,
-    -0.0854026 , -0.08493388, -0.08769042, -0.08493932, -0.77191732
-])
-
-class QAgent:
-    def __init__(self):
-        self.weights = weights
-        self.actions = [(0,2), (0,3), (0,4), (1,2), (1,3), (1,4), (2,2), (2,3), (2,4)]
-        self.alpha = 0.005
-        self.gamma = 0.99
-        self.epsilon = 0.3
-        self.start_time = time.time()
-        self.eps_decay = 0
-        self.epsilon_min = 0.05
-
-    def get_features(self, state, action):
-        """
-        :param state: List of state features
-        :param action: (a1, a2), a1: steering, a2: acceleration
-        :return: features
-        """
-        actions = [0] * 9
-        actions[self.actions.index(action)] = 1
-        features = np.array(state + actions + [1.0])
-        return features
-
-    def q_value(self, state, action):
-        f = self.get_features(state, action)
-        return np.dot(self.weights, f)
-
-    def act(self, state):
-        if random.random() < self.epsilon:
-            return random.choice(self.actions)
-        q_values = [self.q_value(state, action) for action in self.actions]
-        return self.actions[np.argmax(q_values)]
-
-
-    def update(self, state, action, reward, next_state):
-        max_a = max([self.q_value(next_state, action) for action in self.actions])
-        diff = reward + self.gamma * max_a - self.q_value(state, action)
-        diff = np.clip(diff, -1.0, 1.0)
-        f = self.get_features(state, action)
-        self.weights += self.alpha * diff * f
-        if (time.time() - self.start_time) > 300:
-            self.start_time = time.time()
-            with open("weights.txt", "a") as file:
-                file.write(str(self.weights))
-                file.write("\n")
-        self.epsilon = max(self.epsilon_min, self.epsilon * self.eps_decay)
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import random
-import numpy as np
 from collections import deque
 
 class DQN(nn.Module):
@@ -179,8 +114,7 @@ class DQNAgent:
         action_idx = self.actions.index(action)
 
         if not done:
-            done = reward < -4   # SAFE heuristic: grass crash = large negative
-                                 # (better if you pass done explicitly later)
+            done = False
 
         self.buffer.push(state, action_idx, reward, next_state, done)
 
