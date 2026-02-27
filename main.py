@@ -247,7 +247,7 @@ if AI_mode:
 else:
     players = [Player(player_pos)]
 
-fps_timer = 0
+# fps_timer = 0
 
 rotated_cache = {}
 
@@ -418,9 +418,9 @@ while running:
 
     pygame.display.flip()
     dt = clock.tick(60) / 1000
-    fps_timer += dt
-    if fps_timer >= 1.0:
-        print(clock.get_fps())
-        fps_timer = 0
+    # fps_timer += dt
+    # if fps_timer >= 1.0:
+    #     print(clock.get_fps())
+    #     fps_timer = 0
 
 pygame.quit()
