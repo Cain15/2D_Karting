@@ -113,7 +113,8 @@ class DQNAgent:
 
         action_idx = self.actions.index(action)
 
-        if not done:
+        if done is None:
+            print("Something went wrong")
             done = False
 
         self.buffer.push(state, action_idx, reward, next_state, done)
