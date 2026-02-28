@@ -242,8 +242,9 @@ font = pygame.font.Font(None, 36)
 from AIModel import PPOAgent, Action
 AI_mode = True
 model = PPOAgent()
+model.load()
 if AI_mode:
-    players = [Player(player_start_pos) for _ in range(4)]
+    players = [Player(player_start_pos) for _ in range(8)]
 else:
     players = [Player(player_start_pos)]
 
