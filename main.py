@@ -199,6 +199,9 @@ def reset(play):
     play.amount_warnings = 0
     play.prev_action = None
     play.prev_state = None
+    play.prev_log_prob = None
+    play.prev_value = None
+    play.prev_action_idx = None
 
 # Make the track
 track_surface = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
@@ -236,15 +239,15 @@ for x in range(tiles_x):
 font = pygame.font.Font(None, 36)
 
 
-from AIModel import DQNAgent, Action
+from AIModel import PPOAgent, Action
 AI_mode = True
-model = DQNAgent()
+model = PPOAgent()
 if AI_mode:
-    players = [Player(player_start_pos, 0.1 * i) for i in range(10)]
+    players = [Player(player_start_pos) for _ in range(4)]
 else:
-    players = [Player(player_start_pos, 0)]
+    players = [Player(player_start_pos)]
 
-# fps_timer = 0
+fps_timer = 0
 
 rotated_cache = {}
 clock = pygame.time.Clock()
@@ -304,17 +307,35 @@ while running:
                         # pygame.draw.line(screen, (255, 255, 255), p.player_pos, cur_ray, 2)
                         features.append(p.player_pos.distance_to(cur_ray)/200)
 
+
+                    act ,action_idx, log_prob, value = model.act(features)
+                    action = Action(act[0]), Action(act[1])
                     if p.prev_state:
                         reward = get_reward(cur_tile, p.prev_tile)
                         lap_done = cur_tile == finish_tile and p.seen_finish and len(p.tiles_visited) >= min_visited_tiles
                         done = cur_type == Tile.GRASS or lap_done
-                        model.update(p.prev_state, p.prev_action, reward, features, done)
+                        model.store((
+                            p.prev_state,
+                            p.prev_action_idx,
+                            p.prev_log_prob,
+                            reward,
+                            done,
+                            p.prev_value
+                        ))
+                        # Update when enough experience collected
+                        if len(model.memory) >= model.rollout_size:
+                            model.update()
 
-                    act = model.act(features, p.epsilon)
-                    action = Action(act[0]), Action(act[1])
+                        # Also update at episode end (if anything left), not with multiply players
+                        # if done:
+                        #     if len(model.memory) > 0:
+                        #         model.update()
 
                     p.prev_state = features
                     p.prev_action = act
+                    p.prev_action_idx = action_idx
+                    p.prev_log_prob = log_prob
+                    p.prev_value = value.item()
                     if action[1] == Action.accelerate:
                         p.player_velocity -= p.player_acceleration * dt  # accelerate
                         p.player_velocity = max(-p.player_max_velocity, p.player_velocity)  # max velocity
@@ -417,9 +438,9 @@ while running:
         screen.blit(penalty_text, (10, 10))
 
     pygame.display.flip()
-    # fps_timer += dt
-    # if fps_timer >= 1.0:
-    #     print(clock.get_fps())
-    #     fps_timer = 0
+    fps_timer += dt
+    if fps_timer >= 1.0:
+        print(clock.get_fps())
+        fps_timer = 0
 
 pygame.quit()

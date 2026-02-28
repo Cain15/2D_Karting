@@ -11,8 +11,6 @@ Actions:
     - (neutral, neutral)
 """
 import enum
-import random
-import numpy as np
 import time
 
 
@@ -26,162 +24,159 @@ class Action(enum.Enum):
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import random
-from collections import deque
 
-class DQN(nn.Module):
+
+class PPOActorCritic(nn.Module):
     def __init__(self, state_dim, action_dim):
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(state_dim, 64),
+
+        self.shared = nn.Sequential(
+            nn.Linear(state_dim, 128),
             nn.ReLU(),
-            nn.Linear(64, 64),
-            nn.ReLU(),
-            nn.Linear(64, action_dim),
+            nn.Linear(128, 128),
+            nn.ReLU()
         )
+
+        self.policy_head = nn.Linear(128, action_dim)
+        self.value_head = nn.Linear(128, 1)
 
     def forward(self, x):
-        return self.net(x)
+        features = self.shared(x)
+        logits = self.policy_head(features)
+        value = self.value_head(features)
+        return logits, value
 
-class UpgradedDQN(nn.Module):
-    def __init__(self, state_dim, action_dim):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(state_dim, 128),  # bigger first layer
-            nn.ReLU(),
-            nn.Linear(128, 128),  # second hidden layer
-            nn.ReLU(),
-            nn.Linear(128, 64),  # new extra hidden layer
-            nn.ReLU(),
-            nn.Linear(64, action_dim)  # output layer
-        )
+class PPOAgent:
+    def __init__(self, state_dim=8, action_dim=9):
 
-    def forward(self, x):
-        return self.net(x)
-
-class ReplayBuffer:
-    def __init__(self, capacity=100000):
-        self.buffer = deque(maxlen=capacity)
-
-    def push(self, s, a, r, ns, done):
-        self.buffer.append((s, a, r, ns, done))
-
-    def sample(self, batch_size):
-        batch = random.sample(self.buffer, batch_size)
-        s, a, r, ns, d = zip(*batch)
-        return (
-            torch.tensor(s, dtype=torch.float32),
-            torch.tensor(a, dtype=torch.int64),
-            torch.tensor(r, dtype=torch.float32),
-            torch.tensor(ns, dtype=torch.float32),
-            torch.tensor(d, dtype=torch.float32)
-        )
-
-    def __len__(self):
-        return len(self.buffer)
-
-class DQNAgent:
-    def __init__(self):
         self.actions = [(0,2), (0,3), (0,4),
                         (1,2), (1,3), (1,4),
                         (2,2), (2,3), (2,4)]
 
-        self.state_dim = 8
-        self.action_dim = 9
-
-        self.q_net = UpgradedDQN(self.state_dim, self.action_dim)
-        self.target_net = UpgradedDQN(self.state_dim, self.action_dim)
-        self.target_net.load_state_dict(self.q_net.state_dict())
-
-        self.optimizer = optim.Adam(self.q_net.parameters(), lr=0.0005)
-
-        self.buffer = ReplayBuffer()
-
         self.gamma = 0.99
-        self.batch_size = 128
+        self.lam = 0.95
+        self.clip = 0.2
+        self.lr = 3e-4
+        self.epochs = 10
+        self.batch_size = 256
 
-        self.update_counter = 0
+        self.net = PPOActorCritic(state_dim, action_dim)
+        self.optimizer = optim.Adam(self.net.parameters(), lr=self.lr)
+
+        self.memory = []
 
         self.last_save_time = time.time()
-        self.save_interval = 300  # 5 minutes
+        self.save_interval = 300
 
-        self.count = 0
-        self.train_frequency = 40
+        self.rollout_size = 2048
 
-    def q_value(self, state):
-        with torch.no_grad():
-            s = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
-            return self.q_net(s).squeeze().numpy()
+    def act(self, state):
+        state = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
+        logits, value = self.net(state)
+        dist = torch.distributions.Categorical(logits=logits)
+        action = dist.sample()
 
-    def act(self, state, eps=0.0):
-        if random.random() < eps:
-            return random.choice(self.actions)
+        return (
+            self.actions[action.item()],
+            action.item(),
+            dist.log_prob(action),
+            value
+        )
 
-        with torch.no_grad():
-            s = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
-            q_values = self.q_net(s)
-            action_idx = torch.argmax(q_values).item()
+    def store(self, transition):
+        self.memory.append(transition)
 
-        return self.actions[action_idx]
+    def compute_gae(self, rewards, values, dones, next_value):
+        advantages = []
+        gae = 0
+        values = values + [next_value]
 
-    def update(self, state, action, reward, next_state, done = None):
+        for i in reversed(range(len(rewards))):
+            delta = rewards[i] + self.gamma * values[i+1] * (1-dones[i]) - values[i]
+            gae = delta + self.gamma * self.lam * (1-dones[i]) * gae
+            advantages.insert(0, gae)
 
-        action_idx = self.actions.index(action)
+        return advantages
 
-        if done is None:
-            print("Something went wrong")
-            done = False
+    def update(self):
 
-        self.buffer.push(state, action_idx, reward, next_state, done)
+        states, actions, log_probs, rewards, dones, values = zip(*self.memory)
+        # Bootstrap value for last state if rollout didn't end episode
+        if dones[-1]:
+            next_value = 0
+        else:
+            last_state = torch.tensor(states[-1], dtype=torch.float32).unsqueeze(0)
+            with torch.no_grad():
+                _, next_val_tensor = self.net(last_state)
+                next_value = next_val_tensor.item()
 
-        if len(self.buffer) < self.batch_size:
-            return
+        advantages = self.compute_gae(rewards, list(values), dones, next_value)
+        returns = [adv + val for adv, val in zip(advantages, values)]
 
-        self.count += 1
-        if self.count != self.train_frequency:
-            return
-        self.count = 0
+        states = torch.tensor(states, dtype=torch.float32)
+        actions = torch.tensor(actions)
+        old_log_probs = torch.stack(log_probs).detach()
+        advantages = torch.tensor(advantages, dtype=torch.float32)
+        returns = torch.tensor(returns, dtype=torch.float32)
 
-        states, actions, rewards, next_states, dones = self.buffer.sample(self.batch_size)
+        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
-        q_vals = self.q_net(states)
-        q_val = q_vals.gather(1, actions.unsqueeze(1)).squeeze()
+        for _ in range(self.epochs):
 
-        with torch.no_grad():
-            best_actions = self.q_net(next_states).argmax(1).unsqueeze(1)
-            next_q = self.target_net(next_states).gather(1, best_actions).squeeze()
-            target = rewards + (1 - dones) * self.gamma * next_q
+            logits, values_pred = self.net(states)
+            dist = torch.distributions.Categorical(logits=logits)
+            new_log_probs = dist.log_prob(actions)
 
-        loss = nn.functional.smooth_l1_loss(q_val, target)
+            ratio = (new_log_probs - old_log_probs).exp()
 
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
+            surr1 = ratio * advantages
+            surr2 = torch.clamp(ratio, 1-self.clip, 1+self.clip) * advantages
 
-        self.update_counter += 1
+            actor_loss = -torch.min(surr1, surr2).mean()
+            critic_loss = (returns - values_pred.squeeze()).pow(2).mean()
 
-        tau = 0.005  # Factor voor geleidelijke update
-        for target_param, q_param in zip(self.target_net.parameters(), self.q_net.parameters()):
-            target_param.data.copy_(tau * q_param.data + (1.0 - tau) * target_param.data)
+            loss = actor_loss + 0.5 * critic_loss - 0.01 * dist.entropy().mean()
+
+            self.optimizer.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.net.parameters(), 0.5)
+            self.optimizer.step()
+
+        self.memory = []
 
         if time.time() - self.last_save_time > self.save_interval:
             self.last_save_time = time.time()
             self.save()
-            print("Model saved")
 
-    def save(self, filename="dqn_model.pt"):
+    def save(self, filename="ppo_model.pt"):
         torch.save({
-            'q_net': self.q_net.state_dict(),
-            'target_net': self.target_net.state_dict(),
-            'optimizer': self.optimizer.state_dict(),
+            'model_state_dict': self.net.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'gamma': self.gamma,
+            'lam': self.lam,
+            'clip': self.clip,
+            'lr': self.lr,
+            'epochs': self.epochs,
+            'batch_size': self.batch_size,
         }, filename)
 
-    def load(self, filename="dqn_model.pt"):
-        checkpoint = torch.load(filename)
-        self.q_net.load_state_dict(checkpoint['q_net'])
-        self.target_net.load_state_dict(checkpoint['target_net'])
-        self.optimizer.load_state_dict(checkpoint['optimizer'])
+        print(f"PPO model saved to {filename}")
 
+    def load(self, filename="ppo_model.pt"):
+        checkpoint = torch.load(filename)
+
+        self.net.load_state_dict(checkpoint['model_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+        # Optional: restore hyperparameters
+        self.gamma = checkpoint.get('gamma', self.gamma)
+        self.lam = checkpoint.get('lam', self.lam)
+        self.clip = checkpoint.get('clip', self.clip)
+        self.lr = checkpoint.get('lr', self.lr)
+        self.epochs = checkpoint.get('epochs', self.epochs)
+        self.batch_size = checkpoint.get('batch_size', self.batch_size)
+
+        print(f"PPO model loaded from {filename}")
 
 
 
