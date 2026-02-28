@@ -15,3 +15,5 @@ class Player:
         self.tiles_visited = []
         self.amount_warnings = 0
         self.start_time = None
+        self.prev_state = None
+        self.prev_action = None

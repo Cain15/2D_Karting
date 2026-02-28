@@ -84,8 +84,8 @@ class DQNAgent:
         self.gamma = 0.99
         self.batch_size = 128
 
-        self.epsilon = 0.1
-        self.step = 0.0
+        self.epsilon = 0.3
+        self.step = 0.000001
         self.epsilon_min = 0.1
 
         self.update_counter = 0
@@ -94,7 +94,7 @@ class DQNAgent:
         self.save_interval = 300  # 5 minutes
 
         self.count = 0
-        self.train_frequency = 4
+        self.train_frequency = 40
 
     def q_value(self, state):
         with torch.no_grad():

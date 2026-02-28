@@ -1,8 +1,6 @@
 import pygame
 import math
-import random
 from track_gen import read_track, Tile, track_walk
-import time
 
 def get_tile_pos(pygame_pos):
     """
@@ -146,7 +144,6 @@ screen_height = 960
 # Initialize window
 pygame.init()
 screen = pygame.display.set_mode((screen_width, screen_height))
-clock = pygame.time.Clock()
 running = True
 dt = 0
 
@@ -159,7 +156,7 @@ finish_tile = (16,10)
 # Player properties
 from Player import Player
 offset_angle = 180
-player_pos = pygame.Vector2((finish_tile[0]+1)*TILE_SIZE, finish_tile[1]*TILE_SIZE + TILE_SIZE/2)
+player_start_pos = pygame.Vector2((finish_tile[0]+1)*TILE_SIZE, finish_tile[1]*TILE_SIZE + TILE_SIZE/2)
 player = pygame.image.load("assets/player.png").convert_alpha()
 player = pygame.transform.scale(player, (20,40))
 player = pygame.transform.rotate(player, offset_angle)
@@ -240,16 +237,16 @@ font = pygame.font.Font(None, 36)
 from AIModel import DQNAgent, Action
 AI_mode = True
 model = DQNAgent()
-prev_state = None
-prev_action = None
 if AI_mode:
-    players = [Player(player_pos) for _ in range(10)]
+    players = [Player(player_start_pos) for _ in range(10)]
 else:
-    players = [Player(player_pos)]
+    players = [Player(player_start_pos)]
 
 # fps_timer = 0
 
 rotated_cache = {}
+clock = pygame.time.Clock()
+
 
 # Game loop
 while running:
@@ -304,20 +301,20 @@ while running:
                         # pygame.draw.line(screen, (255, 255, 255), p.player_pos, cur_ray, 2)
                         features.append(p.player_pos.distance_to(cur_ray)/200)
 
-                    if prev_state:
+                    if p.prev_state:
                         reward = get_reward(cur_tile, p.prev_tile)
                         lap_done = cur_tile == finish_tile and p.seen_finish and len(p.tiles_visited) >= min_visited_tiles
                         done = cur_type == Tile.GRASS or lap_done
-                        model.update(prev_state, prev_action, reward, features, done)
+                        model.update(p.prev_state, p.prev_action, reward, features, done)
 
                     act = model.act(features)
                     action = Action(act[0]), Action(act[1])
 
-                    prev_state = features
-                    prev_action = act
+                    p.prev_state = features
+                    p.prev_action = act
                     if action[1] == Action.accelerate:
                         p.player_velocity -= p.player_acceleration * dt  # accelerate
-                        p.player_velocity = max(-p.player_max_velocity, p.player_velocity)  # max velocity is
+                        p.player_velocity = max(-p.player_max_velocity, p.player_velocity)  # max velocity
                         if not p.start_time:
                             p.start_time = pygame.time.get_ticks()
                     elif action[1] == Action.decelerate:
