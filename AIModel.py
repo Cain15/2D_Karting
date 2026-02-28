@@ -43,40 +43,21 @@ class DQN(nn.Module):
     def forward(self, x):
         return self.net(x)
 
-class DuelingDQN(nn.Module):
+class UpgradedDQN(nn.Module):
     def __init__(self, state_dim, action_dim):
         super().__init__()
-
-        self.feature = nn.Sequential(
-            nn.Linear(state_dim, 128),
+        self.net = nn.Sequential(
+            nn.Linear(state_dim, 128),  # bigger first layer
             nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU()
-        )
-
-        # Value stream
-        self.value_stream = nn.Sequential(
-            nn.Linear(128, 64),
+            nn.Linear(128, 128),  # second hidden layer
             nn.ReLU(),
-            nn.Linear(64, 1)
-        )
-
-        # Advantage stream
-        self.advantage_stream = nn.Sequential(
-            nn.Linear(128, 64),
+            nn.Linear(128, 64),  # new extra hidden layer
             nn.ReLU(),
-            nn.Linear(64, action_dim)
+            nn.Linear(64, action_dim)  # output layer
         )
 
     def forward(self, x):
-        features = self.feature(x)
-
-        value = self.value_stream(features)
-        advantage = self.advantage_stream(features)
-
-        # Combine streams
-        q_vals = value + (advantage - advantage.mean(dim=1, keepdim=True))
-        return q_vals
+        return self.net(x)
 
 class ReplayBuffer:
     def __init__(self, capacity=100000):
@@ -108,8 +89,8 @@ class DQNAgent:
         self.state_dim = 8
         self.action_dim = 9
 
-        self.q_net = DuelingDQN(self.state_dim, self.action_dim)
-        self.target_net = DuelingDQN(self.state_dim, self.action_dim)
+        self.q_net = UpgradedDQN(self.state_dim, self.action_dim)
+        self.target_net = UpgradedDQN(self.state_dim, self.action_dim)
         self.target_net.load_state_dict(self.q_net.state_dict())
 
         self.optimizer = optim.Adam(self.q_net.parameters(), lr=0.0005)
