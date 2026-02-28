@@ -84,10 +84,6 @@ class DQNAgent:
         self.gamma = 0.99
         self.batch_size = 128
 
-        self.epsilon = 0.3
-        self.step = 0.000001
-        self.epsilon_min = 0.1
-
         self.update_counter = 0
 
         self.last_save_time = time.time()
@@ -101,8 +97,8 @@ class DQNAgent:
             s = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
             return self.q_net(s).squeeze().numpy()
 
-    def act(self, state):
-        if random.random() < self.epsilon:
+    def act(self, state, eps=0.0):
+        if random.random() < eps:
             return random.choice(self.actions)
 
         with torch.no_grad():
@@ -152,8 +148,6 @@ class DQNAgent:
         for target_param, q_param in zip(self.target_net.parameters(), self.q_net.parameters()):
             target_param.data.copy_(tau * q_param.data + (1.0 - tau) * target_param.data)
 
-        self.epsilon = max(self.epsilon_min, self.epsilon - self.step)
-
         if time.time() - self.last_save_time > self.save_interval:
             self.last_save_time = time.time()
             self.save()
@@ -164,7 +158,6 @@ class DQNAgent:
             'q_net': self.q_net.state_dict(),
             'target_net': self.target_net.state_dict(),
             'optimizer': self.optimizer.state_dict(),
-            'epsilon': self.epsilon
         }, filename)
 
     def load(self, filename="dqn_model.pt"):
@@ -172,7 +165,6 @@ class DQNAgent:
         self.q_net.load_state_dict(checkpoint['q_net'])
         self.target_net.load_state_dict(checkpoint['target_net'])
         self.optimizer.load_state_dict(checkpoint['optimizer'])
-        self.epsilon = checkpoint.get('epsilon', self.epsilon)
 
 
 

@@ -197,6 +197,8 @@ def reset(play):
     pause = 3 if not AI_mode else 0
     play.prev_tile = None
     play.amount_warnings = 0
+    play.prev_action = None
+    play.prev_state = None
 
 # Make the track
 track_surface = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
@@ -238,9 +240,9 @@ from AIModel import DQNAgent, Action
 AI_mode = True
 model = DQNAgent()
 if AI_mode:
-    players = [Player(player_start_pos) for _ in range(10)]
+    players = [Player(player_start_pos, 0.1 * i) for i in range(10)]
 else:
-    players = [Player(player_start_pos)]
+    players = [Player(player_start_pos, 0)]
 
 # fps_timer = 0
 
@@ -250,6 +252,7 @@ clock = pygame.time.Clock()
 
 # Game loop
 while running:
+    dt = min(clock.tick(60) / 1000, 0.05)
     # Close program event
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -270,7 +273,7 @@ while running:
     # Check for a pause
     if not pause:
         for p in players:
-            rad = math.radians(p.player_angle) # Angle in radians
+            rad = math.radians(p.player_angle) # Angle in radians # Check for a pause
             p.player_velocity *= (1 - friction * dt)
             if p.player_velocity > -0.5:
                 p.player_velocity = 0
@@ -307,7 +310,7 @@ while running:
                         done = cur_type == Tile.GRASS or lap_done
                         model.update(p.prev_state, p.prev_action, reward, features, done)
 
-                    act = model.act(features)
+                    act = model.act(features, p.epsilon)
                     action = Action(act[0]), Action(act[1])
 
                     p.prev_state = features
@@ -414,7 +417,6 @@ while running:
         screen.blit(penalty_text, (10, 10))
 
     pygame.display.flip()
-    dt = clock.tick(60) / 1000
     # fps_timer += dt
     # if fps_timer >= 1.0:
     #     print(clock.get_fps())
