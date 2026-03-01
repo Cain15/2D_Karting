@@ -242,13 +242,13 @@ font = pygame.font.Font(None, 36)
 from AIModel import PPOAgent, Action
 AI_mode = True
 model = PPOAgent()
-model.load()
+# model.load()
 if AI_mode:
-    players = [Player(player_start_pos) for _ in range(8)]
+    players = [Player(player_start_pos) for _ in range(4)]
 else:
     players = [Player(player_start_pos)]
 
-# fps_timer = 0
+fps_timer = 0
 
 rotated_cache = {}
 clock = pygame.time.Clock()
@@ -276,6 +276,10 @@ while running:
 
     # Check for a pause
     if not pause:
+        if AI_mode:
+            # Update when enough experience collected
+            if len(model.memory) >= model.rollout_size:
+                model.update()
         for p in players:
             rad = math.radians(p.player_angle) # Angle in radians # Check for a pause
             p.player_velocity *= (1 - friction * dt)
@@ -323,9 +327,6 @@ while running:
                             done,
                             p.prev_value
                         ))
-                        # Update when enough experience collected
-                        if len(model.memory) >= model.rollout_size:
-                            model.update()
 
                         # Also update at episode end (if anything left), not with multiply players
                         # if done:
@@ -336,7 +337,7 @@ while running:
                     p.prev_action = act
                     p.prev_action_idx = action_idx
                     p.prev_log_prob = log_prob
-                    p.prev_value = value.item()
+                    p.prev_value = value
                     if action[1] == Action.accelerate:
                         p.player_velocity -= p.player_acceleration * dt  # accelerate
                         p.player_velocity = max(-p.player_max_velocity, p.player_velocity)  # max velocity
@@ -439,9 +440,9 @@ while running:
         screen.blit(penalty_text, (10, 10))
 
     pygame.display.flip()
-    # fps_timer += dt
-    # if fps_timer >= 1.0:
-    #     print(clock.get_fps())
-    #     fps_timer = 0
+    fps_timer += dt
+    if fps_timer >= 1.0:
+        print(clock.get_fps())
+        fps_timer = 0
 
 pygame.quit()

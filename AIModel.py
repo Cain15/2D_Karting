@@ -72,15 +72,16 @@ class PPOAgent:
 
     def act(self, state):
         state = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
-        logits, value = self.net(state)
-        dist = torch.distributions.Categorical(logits=logits)
-        action = dist.sample()
+        with torch.no_grad():
+            logits, value = self.net(state)
+            dist = torch.distributions.Categorical(logits=logits)
+            action = dist.sample()
 
         return (
             self.actions[action.item()],
             action.item(),
             dist.log_prob(action),
-            value
+            value.item()
         )
 
     def store(self, transition):
