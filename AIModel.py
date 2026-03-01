@@ -32,11 +32,11 @@ class DQN(nn.Module):
     def __init__(self, state_dim, action_dim):
         super(DQN, self).__init__()
         self.net = nn.Sequential(
-            nn.Linear(state_dim, 128),
+            nn.Linear(state_dim, 256),
             nn.ReLU(),
-            nn.Linear(128, 128),
+            nn.Linear(256, 256),
             nn.ReLU(),
-            nn.Linear(128, action_dim),
+            nn.Linear(256, action_dim),
         )
     def forward(self, x):
         return self.net(x)
@@ -68,7 +68,7 @@ class DDQNAgent:
                         (1,2), (1,3), (1,4),
                         (2,2), (2,3), (2,4)]
 
-        self.state_dim = 10
+        self.state_dim = 12
         self.action_dim = 9
 
         self.q_net = DQN(self.state_dim, self.action_dim)
@@ -88,13 +88,18 @@ class DDQNAgent:
         self.count = 0
         self.train_frequency = 10
 
+        self.epsilon = 0.9
+        self.epsilon_step = 0.000000025
+        self.epsilon_min = 0.1
+
     def q_value(self, state):
         with torch.no_grad():
             s = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
             return self.q_net(s).squeeze().numpy()
 
-    def act(self, state, eps=0.0):
-        if random.random() < eps:
+    def act(self, state):
+        self.epsilon -= self.epsilon_step
+        if random.random() < self.epsilon:
             return random.choice(self.actions)
 
         with torch.no_grad():
@@ -145,20 +150,22 @@ class DDQNAgent:
         if time.time() - self.last_save_time > self.save_interval:
             self.last_save_time = time.time()
             self.save()
-            print("Model saved")
 
     def save(self, filename="ddqn_model.pth"):
         torch.save({
             'q_net': self.q_net.state_dict(),
             'target_net': self.target_net.state_dict(),
             'optimizer': self.optimizer.state_dict(),
+            'epsilon': self.epsilon
         }, filename)
+        print("Model saved")
 
     def load(self, filename="ddqn_model.pth"):
         checkpoint = torch.load(filename)
         self.q_net.load_state_dict(checkpoint['q_net'])
         self.target_net.load_state_dict(checkpoint['target_net'])
         self.optimizer.load_state_dict(checkpoint['optimizer'])
+        self.epsilon = checkpoint['epsilon']
 
 
 

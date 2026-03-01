@@ -1,4 +1,5 @@
 import enum
+import math
 
 TILE_SIZE = 64
 tiles_x = int(1280 / TILE_SIZE)
@@ -104,8 +105,8 @@ def generate_corner_waypoints(track, ordered_tiles):
 
         if is_corner(tile):
             # Convert tile position to world position (center of tile)
-            wx = tx * TILE_SIZE + TILE_SIZE / 2
-            wy = ty * TILE_SIZE + TILE_SIZE / 2
+            wx = tx * 80 + 80 / 2
+            wy = ty * 80 + 80 / 2
             waypoints.append(Waypoint(wx, wy))
 
     return waypoints
@@ -122,14 +123,14 @@ def corner_reward(player, waypoints):
     distance = (dx**2 + dy**2) ** 0.5
 
     # Smooth reward for moving closer
-    if player.prev_corner_distance:
+    if not math.isinf(player.prev_corner_distance):
         progress = player.prev_corner_distance - distance
         reward += progress * 0.05
     player.prev_corner_distance = distance
 
     # Waypoint reached
-    if distance < 40:
-        reward += 3.0
+    if distance < 50:
+        # reward += 3.0
         player.current_waypoint_index = (player.current_waypoint_index + 1) % len(waypoints)
         player.prev_corner_distance = float("inf")
 

@@ -63,7 +63,7 @@ def is_boundary(tile_type: Tile, movement_dir: str) -> bool:
     return False  # Otherwise, tile is "passable" in ray direction
 
 def ray_trace_bound(player, angle):
-    MAX_RAY_DIST = 200  # pixels
+    MAX_RAY_DIST = 300  # pixels
     ray = player.player_pos.copy()
     ray_rad = math.radians(-player.player_angle + angle)
     direction = pygame.Vector2(math.sin(ray_rad), -math.cos(ray_rad))
@@ -132,11 +132,11 @@ def get_reward(current_tile, previous_tile, player):
     elif delta > track_len / 2:
         delta -= track_len
     rew = float(delta) * 5
-    if abs(p.player_velocity) < 5:
-        rew -= 0.1
+    # if abs(p.player_velocity) < 5:
+    #     rew -= 0.1
 
     speed_bonus = abs(p.player_velocity) / p.player_max_velocity
-    rew += 0.01 * speed_bonus
+    # rew += 0.01 * speed_bonus
     rew += corner_reward(player, waypoints)
 
     return rew
@@ -157,7 +157,7 @@ dt = 0
 TILE_SIZE = 80
 tiles_x = 20
 tiles_y = 12
-finish_tile = (16,10)
+finish_tile = (4,10)
 
 # Player properties
 from Player import Player
@@ -179,7 +179,7 @@ finish = pygame.transform.scale(finish, (80,80))
 
 # Progress tracking
 min_visited_tiles = 68
-tile_order = track_walk(track, (17,10))
+tile_order = track_walk(track, (5,10))
 tile_index = {tile: i for i, tile in enumerate(tile_order)}
 waypoints = generate_corner_waypoints(track, tile_order)
 
@@ -247,9 +247,8 @@ from AIModel import DDQNAgent, Action
 AI_mode = True
 model = DDQNAgent()
 # model.load()
-epsilons = [0.01, 0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.6, 0.8, 1.0]
 if AI_mode:
-    players = [Player(player_start_pos, eps) for eps in epsilons]
+    players = [Player(player_start_pos) for _ in range(10)]
 else:
     players = [Player(player_start_pos)]
 
@@ -307,12 +306,12 @@ while running:
                     v_norm = p.player_velocity / p.player_max_velocity
                     theta = math.radians(p.player_angle)
                     features = [v_norm, math.sin(theta), math.cos(theta)]
-                    for angle in [-60, -40, -20, 0, 20, 40, 60]:
+                    for angle in [-90, -60, -40, -20, 0, 20, 40, 60, 90]:
                         cur_ray = ray_trace_bound(p, angle)
                         # pygame.draw.line(screen, (255, 255, 255), p.player_pos, cur_ray, 2)
                         features.append(p.player_pos.distance_to(cur_ray)/200)
 
-                    act = model.act(features, p.epsilon)
+                    act = model.act(features)
                     action = Action(act[0]), Action(act[1])
 
                     if p.prev_state:
@@ -320,6 +319,10 @@ while running:
                         lap_done = cur_tile == finish_tile and p.seen_finish and len(p.tiles_visited) >= min_visited_tiles
                         done = cur_type == Tile.GRASS or lap_done
                         model.update(p.prev_state, p.prev_action, reward, features, done)
+                        p.reward += reward
+                        if done:
+                            # print(p.reward)
+                            p.reward = 0
 
                     p.prev_state = features
                     p.prev_action = act

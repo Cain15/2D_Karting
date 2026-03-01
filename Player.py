@@ -1,7 +1,7 @@
 import pygame
 
 class Player:
-    def __init__(self, start_pos, eps = 0):
+    def __init__(self, start_pos):
         self.player_pos = start_pos.copy()
         self.player_angle = 90.0
         self.player_acceleration = 55
@@ -18,4 +18,4 @@ class Player:
         self.prev_action = None
         self.current_waypoint_index = 0
         self.prev_corner_distance = float("inf")
-        self.epsilon = eps
+        self.reward = 0
