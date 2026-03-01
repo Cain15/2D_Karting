@@ -83,3 +83,55 @@ def track_walk(track, start):
 
     return order
 
+class Waypoint:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+
+def is_corner(tile):
+    return tile in {
+            Tile.CORNER_DOWN_RIGHT,
+            Tile.CORNER_DOWN_LEFT,
+            Tile.CORNER_UP_RIGHT,
+            Tile.CORNER_UP_LEFT
+        }
+
+def generate_corner_waypoints(track, ordered_tiles):
+    waypoints = []
+
+    for (tx, ty) in ordered_tiles:
+        tile = track[ty][tx]
+
+        if is_corner(tile):
+            # Convert tile position to world position (center of tile)
+            wx = tx * TILE_SIZE + TILE_SIZE / 2
+            wy = ty * TILE_SIZE + TILE_SIZE / 2
+            waypoints.append(Waypoint(wx, wy))
+
+    return waypoints
+
+def corner_reward(player, waypoints):
+    if not waypoints:
+        return 0
+
+    reward = 0
+    wp = waypoints[player.current_waypoint_index]
+
+    dx = wp.x - player.player_pos.x
+    dy = wp.y - player.player_pos.y
+    distance = (dx**2 + dy**2) ** 0.5
+
+    # Smooth reward for moving closer
+    if player.prev_corner_distance:
+        progress = player.prev_corner_distance - distance
+        reward += progress * 0.05
+    player.prev_corner_distance = distance
+
+    # Waypoint reached
+    if distance < 40:
+        reward += 3.0
+        player.current_waypoint_index = (player.current_waypoint_index + 1) % len(waypoints)
+        player.prev_corner_distance = float("inf")
+
+    return reward
+

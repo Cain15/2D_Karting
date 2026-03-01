@@ -1,7 +1,7 @@
 import pygame
 
 class Player:
-    def __init__(self, start_pos):
+    def __init__(self, start_pos, eps = 0):
         self.player_pos = start_pos.copy()
         self.player_angle = 90.0
         self.player_acceleration = 55
@@ -15,8 +15,7 @@ class Player:
         self.amount_warnings = 0
         self.start_time = None
         self.prev_state = None
-        self.prev_steer_action = None
-        self.prev_throttle_action = None
-        self.prev_steer_log_prob = None
-        self.prev_throttle_log_prob = None
-        self.prev_value = None
+        self.prev_action = None
+        self.current_waypoint_index = 0
+        self.prev_corner_distance = float("inf")
+        self.epsilon = eps

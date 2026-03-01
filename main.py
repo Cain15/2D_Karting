@@ -1,6 +1,7 @@
 import pygame
 import math
-from track_gen import read_track, Tile, track_walk
+from track_gen import read_track, Tile, track_walk, generate_corner_waypoints, corner_reward
+import threading
 
 def get_tile_pos(pygame_pos):
     """
@@ -135,7 +136,8 @@ def get_reward(current_tile, previous_tile, player):
         rew -= 0.1
 
     speed_bonus = abs(p.player_velocity) / p.player_max_velocity
-    rew += 0.2 * speed_bonus
+    rew += 0.01 * speed_bonus
+    rew += corner_reward(player, waypoints)
 
     return rew
 
@@ -179,6 +181,7 @@ finish = pygame.transform.scale(finish, (80,80))
 min_visited_tiles = 68
 tile_order = track_walk(track, (17,10))
 tile_index = {tile: i for i, tile in enumerate(tile_order)}
+waypoints = generate_corner_waypoints(track, tile_order)
 
 # Game state variables
 pause = 0
@@ -203,9 +206,6 @@ def reset(play):
     play.amount_warnings = 0
     play.prev_action = None
     play.prev_state = None
-    play.prev_log_prob = None
-    play.prev_value = None
-    play.prev_action_idx = None
 
 # Make the track
 track_surface = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
@@ -243,12 +243,13 @@ for x in range(tiles_x):
 font = pygame.font.Font(None, 36)
 
 
-from AIModel import PPOAgent, Action
+from AIModel import DDQNAgent, Action
 AI_mode = True
-model = PPOAgent()
+model = DDQNAgent()
 # model.load()
+epsilons = [0.01, 0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.6, 0.8, 1.0]
 if AI_mode:
-    players = [Player(player_start_pos) for _ in range(4)]
+    players = [Player(player_start_pos, eps) for eps in epsilons]
 else:
     players = [Player(player_start_pos)]
 
@@ -256,7 +257,6 @@ else:
 
 rotated_cache = {}
 clock = pygame.time.Clock()
-
 
 # Game loop
 while running:
@@ -280,10 +280,6 @@ while running:
 
     # Check for a pause
     if not pause:
-        if AI_mode:
-            # Update when enough experience collected
-            if len(model.memory) >= model.rollout_size:
-                model.update()
         for p in players:
             rad = math.radians(p.player_angle) # Angle in radians # Check for a pause
             p.player_velocity *= (1 - friction * dt)
@@ -311,39 +307,22 @@ while running:
                     v_norm = p.player_velocity / p.player_max_velocity
                     theta = math.radians(p.player_angle)
                     features = [v_norm, math.sin(theta), math.cos(theta)]
-                    for angle in [-90, -45, 0, 45, 90]:
+                    for angle in [-60, -40, -20, 0, 20, 40, 60]:
                         cur_ray = ray_trace_bound(p, angle)
                         # pygame.draw.line(screen, (255, 255, 255), p.player_pos, cur_ray, 2)
                         features.append(p.player_pos.distance_to(cur_ray)/200)
 
-                    (action_pair,
-                     steer_action,
-                     throttle_action,
-                     steer_log_prob,
-                     throttle_log_prob,
-                     value) = model.act(features)
-                    action = Action(action_pair[0]), Action(action_pair[1])
+                    act = model.act(features, p.epsilon)
+                    action = Action(act[0]), Action(act[1])
+
                     if p.prev_state:
                         reward = get_reward(cur_tile, p.prev_tile, p)
                         lap_done = cur_tile == finish_tile and p.seen_finish and len(p.tiles_visited) >= min_visited_tiles
                         done = cur_type == Tile.GRASS or lap_done
-                        model.store((
-                            p.prev_state,
-                            p.prev_steer_action,
-                            p.prev_throttle_action,
-                            p.prev_steer_log_prob,
-                            p.prev_throttle_log_prob,
-                            reward,
-                            done,
-                            p.prev_value
-                        ))
+                        model.update(p.prev_state, p.prev_action, reward, features, done)
 
                     p.prev_state = features
-                    p.prev_steer_action = steer_action
-                    p.prev_throttle_action = throttle_action
-                    p.prev_steer_log_prob = steer_log_prob
-                    p.prev_throttle_log_prob = throttle_log_prob
-                    p.prev_value = value
+                    p.prev_action = act
                     if action[1] == Action.accelerate:
                         p.player_velocity -= p.player_acceleration * dt  # accelerate
                         p.player_velocity = max(-p.player_max_velocity, p.player_velocity)  # max velocity
