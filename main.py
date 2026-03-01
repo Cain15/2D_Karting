@@ -110,7 +110,7 @@ def ray_trace_bound(player, angle):
     ray -= direction * t
     return ray
 
-def get_reward(current_tile, previous_tile):
+def get_reward(current_tile, previous_tile, player):
     if track[current_tile[1]][current_tile[0]] == Tile.GRASS:
         return -50.0
     if previous_tile is None:
@@ -130,8 +130,12 @@ def get_reward(current_tile, previous_tile):
         delta += track_len
     elif delta > track_len / 2:
         delta -= track_len
-    rew = float(delta) * 2
-    rew -= 0.001
+    rew = float(delta) * 5
+    if abs(p.player_velocity) < 5:
+        rew -= 0.1
+
+    speed_bonus = abs(p.player_velocity) / p.player_max_velocity
+    rew += 0.2 * speed_bonus
 
     return rew
 
@@ -248,7 +252,7 @@ if AI_mode:
 else:
     players = [Player(player_start_pos)]
 
-fps_timer = 0
+# fps_timer = 0
 
 rotated_cache = {}
 clock = pygame.time.Clock()
@@ -312,31 +316,33 @@ while running:
                         # pygame.draw.line(screen, (255, 255, 255), p.player_pos, cur_ray, 2)
                         features.append(p.player_pos.distance_to(cur_ray)/200)
 
-
-                    act ,action_idx, log_prob, value = model.act(features)
-                    action = Action(act[0]), Action(act[1])
+                    (action_pair,
+                     steer_action,
+                     throttle_action,
+                     steer_log_prob,
+                     throttle_log_prob,
+                     value) = model.act(features)
+                    action = Action(action_pair[0]), Action(action_pair[1])
                     if p.prev_state:
-                        reward = get_reward(cur_tile, p.prev_tile)
+                        reward = get_reward(cur_tile, p.prev_tile, p)
                         lap_done = cur_tile == finish_tile and p.seen_finish and len(p.tiles_visited) >= min_visited_tiles
                         done = cur_type == Tile.GRASS or lap_done
                         model.store((
                             p.prev_state,
-                            p.prev_action_idx,
-                            p.prev_log_prob,
+                            p.prev_steer_action,
+                            p.prev_throttle_action,
+                            p.prev_steer_log_prob,
+                            p.prev_throttle_log_prob,
                             reward,
                             done,
                             p.prev_value
                         ))
 
-                        # Also update at episode end (if anything left), not with multiply players
-                        # if done:
-                        #     if len(model.memory) > 0:
-                        #         model.update()
-
                     p.prev_state = features
-                    p.prev_action = act
-                    p.prev_action_idx = action_idx
-                    p.prev_log_prob = log_prob
+                    p.prev_steer_action = steer_action
+                    p.prev_throttle_action = throttle_action
+                    p.prev_steer_log_prob = steer_log_prob
+                    p.prev_throttle_log_prob = throttle_log_prob
                     p.prev_value = value
                     if action[1] == Action.accelerate:
                         p.player_velocity -= p.player_acceleration * dt  # accelerate
@@ -440,9 +446,9 @@ while running:
         screen.blit(penalty_text, (10, 10))
 
     pygame.display.flip()
-    fps_timer += dt
-    if fps_timer >= 1.0:
-        print(clock.get_fps())
-        fps_timer = 0
+    # fps_timer += dt
+    # if fps_timer >= 1.0:
+    #     print(clock.get_fps())
+    #     fps_timer = 0
 
 pygame.quit()

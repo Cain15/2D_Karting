@@ -15,7 +15,8 @@ class Player:
         self.amount_warnings = 0
         self.start_time = None
         self.prev_state = None
-        self.prev_action = None
-        self.prev_action_idx = None
-        self.prev_log_prob = None
+        self.prev_steer_action = None
+        self.prev_throttle_action = None
+        self.prev_steer_log_prob = None
+        self.prev_throttle_log_prob = None
         self.prev_value = None

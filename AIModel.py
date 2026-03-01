@@ -37,21 +37,22 @@ class PPOActorCritic(nn.Module):
             nn.ReLU()
         )
 
-        self.policy_head = nn.Linear(128, action_dim)
+        self.steer_head = nn.Linear(128, 3)
+        self.throttle_head = nn.Linear(128, 3)
         self.value_head = nn.Linear(128, 1)
 
     def forward(self, x):
         features = self.shared(x)
-        logits = self.policy_head(features)
+        steer_logits = self.steer_head(features)
+        throttle_logits = self.throttle_head(features)
         value = self.value_head(features)
-        return logits, value
+        return steer_logits, throttle_logits, value
 
 class PPOAgent:
     def __init__(self, state_dim=8, action_dim=9):
 
-        self.actions = [(0,2), (0,3), (0,4),
-                        (1,2), (1,3), (1,4),
-                        (2,2), (2,3), (2,4)]
+        self.steer_map = {0: 0, 1: 1, 2: 2}  # left, right, neutral
+        self.throttle_map = {0: 3, 1: 2, 2: 4}  # decelerate, neutral, accelerate
 
         self.gamma = 0.99
         self.lam = 0.95
@@ -72,15 +73,22 @@ class PPOAgent:
 
     def act(self, state):
         state = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
+
         with torch.no_grad():
-            logits, value = self.net(state)
-            dist = torch.distributions.Categorical(logits=logits)
-            action = dist.sample()
+            steer_logits, throttle_logits, value = self.net(state)
+
+            steer_dist = torch.distributions.Categorical(logits=steer_logits)
+            throttle_dist = torch.distributions.Categorical(logits=throttle_logits)
+
+            steer_action = steer_dist.sample()
+            throttle_action = throttle_dist.sample()
 
         return (
-            self.actions[action.item()],
-            action.item(),
-            dist.log_prob(action),
+            (self.steer_map[steer_action.item()], self.throttle_map[throttle_action.item()]),
+            steer_action.item(),
+            throttle_action.item(),
+            steer_dist.log_prob(steer_action),
+            throttle_dist.log_prob(throttle_action),
             value.item()
         )
 
@@ -101,7 +109,9 @@ class PPOAgent:
 
     def update(self):
 
-        states, actions, log_probs, rewards, dones, values = zip(*self.memory)
+        states, steer_actions, throttle_actions, \
+            old_steer_log_probs, old_throttle_log_probs, \
+            rewards, dones, values = zip(*self.memory)
         # Bootstrap value for last state if rollout didn't end episode
         if dones[-1]:
             next_value = 0
@@ -115,28 +125,38 @@ class PPOAgent:
         returns = [adv + val for adv, val in zip(advantages, values)]
 
         states = torch.tensor(states, dtype=torch.float32)
-        actions = torch.tensor(actions)
-        old_log_probs = torch.stack(log_probs).detach()
+        steer_actions = torch.tensor(steer_actions)
+        throttle_actions = torch.tensor(throttle_actions)
+
+        old_steer_log_probs = torch.stack(old_steer_log_probs).detach()
+        old_throttle_log_probs = torch.stack(old_throttle_log_probs).detach()
+
         advantages = torch.tensor(advantages, dtype=torch.float32)
         returns = torch.tensor(returns, dtype=torch.float32)
 
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
         for _ in range(self.epochs):
+            steer_logits, throttle_logits, values_pred = self.net(states)
 
-            logits, values_pred = self.net(states)
-            dist = torch.distributions.Categorical(logits=logits)
-            new_log_probs = dist.log_prob(actions)
+            steer_dist = torch.distributions.Categorical(logits=steer_logits)
+            throttle_dist = torch.distributions.Categorical(logits=throttle_logits)
 
-            ratio = (new_log_probs - old_log_probs).exp()
+            new_steer_log_probs = steer_dist.log_prob(steer_actions)
+            new_throttle_log_probs = throttle_dist.log_prob(throttle_actions)
+
+            ratio_steer = (new_steer_log_probs - old_steer_log_probs).exp()
+            ratio_throttle = (new_throttle_log_probs - old_throttle_log_probs).exp()
+
+            ratio = ratio_steer * ratio_throttle
 
             surr1 = ratio * advantages
-            surr2 = torch.clamp(ratio, 1-self.clip, 1+self.clip) * advantages
-
+            surr2 = torch.clamp(ratio, 1 - self.clip, 1 + self.clip) * advantages
             actor_loss = -torch.min(surr1, surr2).mean()
             critic_loss = (returns - values_pred.squeeze()).pow(2).mean()
 
-            loss = actor_loss + 0.5 * critic_loss - 0.01 * dist.entropy().mean()
+            entropy = steer_dist.entropy().mean() + throttle_dist.entropy().mean()
+            loss = actor_loss + 0.5 * critic_loss - 0.05 * entropy
 
             self.optimizer.zero_grad()
             loss.backward()
