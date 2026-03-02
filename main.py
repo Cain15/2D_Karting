@@ -206,6 +206,8 @@ def reset(play):
     play.amount_warnings = 0
     play.prev_action = None
     play.prev_state = None
+    play.current_waypoint_index = 0
+    play.prev_corner_distance = float("inf")
 
 # Make the track
 track_surface = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
@@ -246,7 +248,7 @@ font = pygame.font.Font(None, 36)
 from AIModel import DDQNAgent, Action
 AI_mode = True
 model = DDQNAgent()
-# model.load()
+model.load()
 if AI_mode:
     players = [Player(player_start_pos) for _ in range(10)]
 else:
@@ -267,6 +269,9 @@ while running:
     # Set background color and draw track on screen
     screen.fill((116, 179, 74))
     screen.blit(track_surface, (0,0))
+
+    waypoint = waypoints[players[0].current_waypoint_index]
+    pygame.draw.circle(screen, (255, 255, 255), (waypoint.x, waypoint.y), 10)
 
     # Draw the player
     for p in players:

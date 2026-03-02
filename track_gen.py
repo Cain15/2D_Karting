@@ -129,7 +129,7 @@ def corner_reward(player, waypoints):
     player.prev_corner_distance = distance
 
     # Waypoint reached
-    if distance < 50:
+    if distance < 55.57:
         # reward += 3.0
         player.current_waypoint_index = (player.current_waypoint_index + 1) % len(waypoints)
         player.prev_corner_distance = float("inf")
