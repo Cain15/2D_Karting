@@ -68,7 +68,7 @@ class DDQNAgent:
                         (1,2), (1,3), (1,4),
                         (2,2), (2,3), (2,4)]
 
-        self.state_dim = 12
+        self.state_dim = 14
         self.action_dim = 9
 
         self.q_net = DQN(self.state_dim, self.action_dim)
@@ -89,7 +89,7 @@ class DDQNAgent:
         self.train_frequency = 10
 
         self.epsilon = 0.9
-        self.epsilon_step = 0.000000025
+        self.epsilon_step = 0.00000005
         self.epsilon_min = 0.1
 
     def q_value(self, state):

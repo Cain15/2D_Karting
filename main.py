@@ -270,7 +270,19 @@ while running:
     screen.fill((116, 179, 74))
     screen.blit(track_surface, (0,0))
 
-    waypoint = waypoints[players[0].current_waypoint_index]
+    farthest_player = None
+    farthest_tile_idx = 0
+    for p in players:
+        tile = get_tile_pos(p.player_pos)
+        idx = tile_index[tile]
+        if not farthest_player:
+            farthest_player = p
+            farthest_tile_idx = idx
+        elif idx > farthest_tile_idx:
+            farthest_player = p
+            farthest_tile_idx = idx
+
+    waypoint = waypoints[farthest_player.current_waypoint_index]
     pygame.draw.circle(screen, (255, 255, 255), (waypoint.x, waypoint.y), 10)
 
     # Draw the player
@@ -310,11 +322,25 @@ while running:
                     # Calculate the track edge points
                     v_norm = p.player_velocity / p.player_max_velocity
                     theta = math.radians(p.player_angle)
-                    features = [v_norm, math.sin(theta), math.cos(theta)]
+                    wp = waypoints[p.current_waypoint_index]
+                    to_wp = pygame.Vector2(wp.x, wp.y) - p.player_pos
+                    forward = pygame.Vector2(math.sin(theta), -math.cos(theta))
+                    if to_wp.length() > 0:
+                        to_wp_norm = to_wp.normalize()
+                        angle_diff = forward.angle_to(to_wp_norm) / 180.0
+                    else:
+                        angle_diff = 0.0
+                    try:
+                        tile_idx = tile_index[cur_tile]
+                        progress = tile_idx/len(tile_order)
+                    except KeyError:
+                        progress = 0
+                    features = [v_norm, math.sin(theta), math.cos(theta), angle_diff, progress]
                     for angle in [-90, -60, -40, -20, 0, 20, 40, 60, 90]:
                         cur_ray = ray_trace_bound(p, angle)
                         # pygame.draw.line(screen, (255, 255, 255), p.player_pos, cur_ray, 2)
-                        features.append(p.player_pos.distance_to(cur_ray)/200)
+                        features.append(p.player_pos.distance_to(cur_ray)/300)
+
 
                     act = model.act(features)
                     action = Action(act[0]), Action(act[1])
@@ -394,8 +420,8 @@ while running:
                 # write_laptime(pygame.time.get_ticks() - start_time, True)
                 reset(p)
         else:
-            if players[0].start_time:
-                elapsed_ms = pygame.time.get_ticks() - players[0].start_time
+            if farthest_player.start_time:
+                elapsed_ms = pygame.time.get_ticks() - farthest_player.start_time
                 elapsed_sec = elapsed_ms // 1000
                 elapsed_min = elapsed_sec // 60
                 elapsed_sec = elapsed_sec % 60
