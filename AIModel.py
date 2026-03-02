@@ -89,7 +89,7 @@ class DDQNAgent:
         self.train_frequency = 10
 
         self.epsilon = 0.9
-        self.epsilon_step = 0.00000005
+        self.epsilon_step = 0.000000025
         self.epsilon_min = 0.1
 
     def q_value(self, state):

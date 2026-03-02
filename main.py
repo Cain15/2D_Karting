@@ -102,7 +102,7 @@ def ray_trace_bound(player, angle):
     correction_pixels = 7
     t = 0
     if movement_dir in ["LEFT", "RIGHT"]:
-        # Need vertical (Y) correction
+        # Need vertical (Y) correctiondt
         t = correction_pixels / abs(dx)
 
     elif movement_dir in ["UP", "DOWN"]:
@@ -131,7 +131,10 @@ def get_reward(current_tile, previous_tile, player):
         delta += track_len
     elif delta > track_len / 2:
         delta -= track_len
-    rew = float(delta) * 5
+    if delta > 1:
+        rew = -50
+    else:
+        rew = float(delta) * 5
     # if abs(p.player_velocity) < 5:
     #     rew -= 0.1
 
@@ -349,6 +352,11 @@ while running:
                         reward = get_reward(cur_tile, p.prev_tile, p)
                         lap_done = cur_tile == finish_tile and p.seen_finish and len(p.tiles_visited) >= min_visited_tiles
                         done = cur_type == Tile.GRASS or lap_done
+                        if not done:
+                            cur_id = tile_index[cur_tile]
+                            prev_id = tile_index[p.prev_tile]
+                            delta = cur_id - prev_id
+                            done = delta > 1
                         model.update(p.prev_state, p.prev_action, reward, features, done)
                         p.reward += reward
                         if done:
@@ -410,6 +418,11 @@ while running:
                         p.amount_warnings += 1
                         if p.amount_warnings == 3 or (AI_mode and p.amount_warnings == 1):
                             p.dsq = True
+                    else:
+                        cur_id = tile_index[cur_tile]
+                        prev_id = tile_index[p.prev_tile]
+                        delta = cur_id - prev_id
+                        if delta > 1: p.dsq = True
         # if start_time:
         #     if (pygame.time.get_ticks() - start_time) // 1000 > 300:
         #         dsq = True
