@@ -42,7 +42,7 @@ class DQN(nn.Module):
         return self.net(x)
 
 class ReplayBuffer:
-    def __init__(self, capacity=500000):
+    def __init__(self, capacity=200000):
         self.buffer = deque(maxlen=capacity)
 
     def push(self, state, action, reward, next_state, done):
@@ -88,20 +88,24 @@ class DDQNAgent:
         self.count = 0
         self.train_frequency = 10
 
-        self.epsilon = 0.9
-        self.epsilon_step = 0.005
-        self.epsilon_min = 0.1
+        self.epsilon = 0.8
+        self.epsilon_step = 0.00000001
+        self.epsilon_min = 0.05
 
     def q_value(self, state):
         with torch.no_grad():
             s = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
             return self.q_net(s).squeeze().numpy()
 
-    def act(self, state):
-        self.epsilon -= self.epsilon_step
-        self.epsilon = max(self.epsilon, self.epsilon_min)
-        if random.random() < self.epsilon:
-            return random.choice(self.actions)
+    def act(self, state, eps=None):
+        if not eps:
+            self.epsilon -= self.epsilon_step
+            self.epsilon = max(self.epsilon, self.epsilon_min)
+            if random.random() < self.epsilon:
+                return random.choice(self.actions)
+        else:
+            if random.random() < eps:
+                return random.choice(self.actions)
 
         with torch.no_grad():
             s = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
@@ -130,7 +134,6 @@ class DDQNAgent:
         states, actions, rewards, next_states, dones = self.buffer.sample(self.batch_size)
 
         q_vals = self.q_net(states)
-        print(q_vals.mean().item(), q_vals.max().item())
         q_val = q_vals.gather(1, actions.unsqueeze(1)).squeeze()
 
         with torch.no_grad():

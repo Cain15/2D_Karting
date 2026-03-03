@@ -1,3 +1,4 @@
+import numpy as np
 import pygame
 import math
 from track_gen import read_track, Tile, track_walk, generate_corner_waypoints, corner_reward
@@ -135,8 +136,8 @@ def get_reward(current_tile, previous_tile, player):
         rew = -50
     else:
         rew = float(delta) * 5
-    # if abs(p.player_velocity) < 5:
-    #     rew -= 0.1
+    if abs(p.player_velocity) < 5:
+        rew -= 0.05
 
     speed_bonus = abs(p.player_velocity) / p.player_max_velocity
     # rew += 0.01 * speed_bonus
@@ -253,7 +254,11 @@ AI_mode = True
 model = DDQNAgent()
 model.load()
 if AI_mode:
-    players = [Player(player_start_pos) for _ in range(1)]
+    players = [Player(player_start_pos) for _ in range(6)]
+    players.append(Player(player_start_pos, 0.3))
+    players.append(Player(player_start_pos, 0.3))
+    players.append(Player(player_start_pos, 0.5))
+    players.append(Player(player_start_pos, 0.01))
 else:
     players = [Player(player_start_pos)]
 
@@ -288,8 +293,8 @@ while running:
         else:
             farthest_player = players[0]
 
-    waypoint = waypoints[farthest_player.current_waypoint_index]
-    pygame.draw.circle(screen, (255, 255, 255), (waypoint.x, waypoint.y), 10)
+    # waypoint = waypoints[farthest_player.current_waypoint_index]
+    # pygame.draw.circle(screen, (255, 255, 255), (waypoint.x, waypoint.y), 10)
 
     # Draw the player
     for p in players:
@@ -345,10 +350,10 @@ while running:
                     for angle in [-90, -60, -40, -20, 0, 20, 40, 60, 90]:
                         cur_ray = ray_trace_bound(p, angle)
                         # pygame.draw.line(screen, (255, 255, 255), p.player_pos, cur_ray, 2)
-                        features.append(p.player_pos.distance_to(cur_ray)/300)
+                        features.append(np.clip(p.player_pos.distance_to(cur_ray)/300,0.0, 1.0))
 
 
-                    act = model.act(features)
+                    act = model.act(features, p.eps)
                     action = Action(act[0]), Action(act[1])
 
                     if p.prev_state:
@@ -360,6 +365,11 @@ while running:
                                 cur_id = tile_index[cur_tile]
                                 prev_id = tile_index[p.prev_tile]
                                 delta = cur_id - prev_id
+                                track_len = len(tile_order)
+                                if delta < -track_len / 2:
+                                    delta += track_len
+                                elif delta > track_len / 2:
+                                    delta -= track_len
                                 done = delta > 1
                         model.update(p.prev_state, p.prev_action, reward, features, done)
                         p.reward += reward
@@ -404,11 +414,17 @@ while running:
 
                 p.player_angle %= 360
                 if cur_tile != p.prev_tile:
-                    if p.prev_tile and not cur_type == Tile.GRASS:
+                    if p.prev_tile and not cur_type == Tile.GRASS and track[p.prev_tile[1]][p.prev_tile[0]] != Tile.GRASS:
                         cur_id = tile_index[cur_tile]
                         prev_id = tile_index[p.prev_tile]
                         delta = cur_id - prev_id
-                        if delta > 1: p.dsq = True
+                        track_len = len(tile_order)
+                        if delta < -track_len / 2:
+                            delta += track_len
+                        elif delta > track_len / 2:
+                            delta -= track_len
+                        if delta > 1:
+                            p.dsq = True
                     p.prev_tile = cur_tile
                     if cur_tile not in p.tiles_visited and cur_type != Tile.GRASS:
                         p.tiles_visited.append(cur_tile)
