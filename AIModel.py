@@ -89,7 +89,7 @@ class DDQNAgent:
         self.train_frequency = 10
 
         self.epsilon = 0.9
-        self.epsilon_step = 0.000000025
+        self.epsilon_step = 0.005
         self.epsilon_min = 0.1
 
     def q_value(self, state):
@@ -99,6 +99,7 @@ class DDQNAgent:
 
     def act(self, state):
         self.epsilon -= self.epsilon_step
+        self.epsilon = max(self.epsilon, self.epsilon_min)
         if random.random() < self.epsilon:
             return random.choice(self.actions)
 
@@ -129,6 +130,7 @@ class DDQNAgent:
         states, actions, rewards, next_states, dones = self.buffer.sample(self.batch_size)
 
         q_vals = self.q_net(states)
+        print(q_vals.mean().item(), q_vals.max().item())
         q_val = q_vals.gather(1, actions.unsqueeze(1)).squeeze()
 
         with torch.no_grad():

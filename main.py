@@ -253,7 +253,7 @@ AI_mode = True
 model = DDQNAgent()
 model.load()
 if AI_mode:
-    players = [Player(player_start_pos) for _ in range(10)]
+    players = [Player(player_start_pos) for _ in range(1)]
 else:
     players = [Player(player_start_pos)]
 
@@ -277,13 +277,16 @@ while running:
     farthest_tile_idx = 0
     for p in players:
         tile = get_tile_pos(p.player_pos)
-        idx = tile_index[tile]
-        if not farthest_player:
-            farthest_player = p
-            farthest_tile_idx = idx
-        elif idx > farthest_tile_idx:
-            farthest_player = p
-            farthest_tile_idx = idx
+        if not track[tile[1]][tile[0]] == Tile.GRASS:
+            idx = tile_index[tile]
+            if not farthest_player:
+                farthest_player = p
+                farthest_tile_idx = idx
+            elif idx > farthest_tile_idx:
+                farthest_player = p
+                farthest_tile_idx = idx
+        else:
+            farthest_player = players[0]
 
     waypoint = waypoints[farthest_player.current_waypoint_index]
     pygame.draw.circle(screen, (255, 255, 255), (waypoint.x, waypoint.y), 10)
@@ -353,10 +356,11 @@ while running:
                         lap_done = cur_tile == finish_tile and p.seen_finish and len(p.tiles_visited) >= min_visited_tiles
                         done = cur_type == Tile.GRASS or lap_done
                         if not done:
-                            cur_id = tile_index[cur_tile]
-                            prev_id = tile_index[p.prev_tile]
-                            delta = cur_id - prev_id
-                            done = delta > 1
+                            if p.prev_tile:
+                                cur_id = tile_index[cur_tile]
+                                prev_id = tile_index[p.prev_tile]
+                                delta = cur_id - prev_id
+                                done = delta > 1
                         model.update(p.prev_state, p.prev_action, reward, features, done)
                         p.reward += reward
                         if done:
@@ -400,6 +404,11 @@ while running:
 
                 p.player_angle %= 360
                 if cur_tile != p.prev_tile:
+                    if p.prev_tile and not cur_type == Tile.GRASS:
+                        cur_id = tile_index[cur_tile]
+                        prev_id = tile_index[p.prev_tile]
+                        delta = cur_id - prev_id
+                        if delta > 1: p.dsq = True
                     p.prev_tile = cur_tile
                     if cur_tile not in p.tiles_visited and cur_type != Tile.GRASS:
                         p.tiles_visited.append(cur_tile)
@@ -414,15 +423,11 @@ while running:
                             lap_times = lap_times[:5]
                             # write_laptime(pygame.time.get_ticks() - start_time + amount_warnings * 5000)
                             reset(p)
-                    if cur_type == Tile.GRASS:
+                    elif cur_type == Tile.GRASS:
                         p.amount_warnings += 1
                         if p.amount_warnings == 3 or (AI_mode and p.amount_warnings == 1):
                             p.dsq = True
-                    else:
-                        cur_id = tile_index[cur_tile]
-                        prev_id = tile_index[p.prev_tile]
-                        delta = cur_id - prev_id
-                        if delta > 1: p.dsq = True
+
         # if start_time:
         #     if (pygame.time.get_ticks() - start_time) // 1000 > 300:
         #         dsq = True

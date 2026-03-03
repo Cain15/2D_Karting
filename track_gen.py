@@ -52,36 +52,51 @@ def track_walk(track, start):
     order = []
     current = start
     prev = None
+    width = len(track[0])
+    height = len(track)
 
     while True:
         order.append(current)
         visited.add(current)
+        x, y = current
+        # Generate all 4-directional neighbors
+        candidates = [
+            (x - 1, y),
+            (x + 1, y),
+            (x, y - 1),
+            (x, y + 1),
+        ]
+        neighbors = []
+        for nx, ny in candidates:
+            # Bounds check
+            if not (0 <= nx < width and 0 <= ny < height):
+                continue
 
-        if current == start:
-            neighbors = [(current[0]-1, current[1])]
-        else:
-            neighbors = [(current[0]-1, current[1]), (current[0]+1, current[1]), (current[0], current[1]-1), (current[0], current[1]+1)]
-            i = 0
-            while i < len(neighbors):
-                if track[neighbors[i][1]][neighbors[i][0]] == Tile.GRASS:
-                    neighbors.remove(neighbors[i])
-                    i = i - 1
-                i += 1
+            # Must not be grass
+            if track[ny][nx] == Tile.GRASS:
+                continue
 
-        # remove the tile we came from
-        if prev in neighbors:
-            neighbors.remove(prev)
+            # Don't go back to where we just came from
+            if (nx, ny) == prev:
+                continue
+
+            # Don't revisit tiles (except allow returning to start to close loop)
+            if (nx, ny) in visited and (nx, ny) != start:
+                continue
+
+            neighbors.append((nx, ny))
 
         if not neighbors:
             break
 
         next_tile = neighbors[0]
-        prev = current
-        current = next_tile
 
-        if current == start:
+        # If we returned to start, we're done
+        if next_tile == start:
             break
 
+        prev = current
+        current = next_tile
     return order
 
 class Waypoint:
