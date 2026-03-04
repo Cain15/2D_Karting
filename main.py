@@ -126,6 +126,8 @@ def get_reward(current_tile, previous_tile, player):
         return -50.0
     track_len = len(tile_order)
     delta = cur_idx - prev_idx
+    track_progress = tile_index.get(current_tile, 0) / len(tile_order)
+    progress_multiplier = 1.0 + 1.5 * max(0.0, track_progress - 0.7)
 
     # Wrap-around correction
     if delta < -track_len / 2:
@@ -135,7 +137,7 @@ def get_reward(current_tile, previous_tile, player):
     if delta > 1:
         rew = -50
     else:
-        rew = float(delta) * 5
+        rew = float(delta) * 5 * progress_multiplier
     if abs(p.player_velocity) < 5:
         rew -= 0.05
 
@@ -192,7 +194,7 @@ pause = 0
 message = ""
 
 # Keep lap times
-lap_times = []
+lap_times = [42000]
 
 def reset(play):
     """
@@ -254,11 +256,7 @@ AI_mode = True
 model = DDQNAgent()
 model.load()
 if AI_mode:
-    players = [Player(player_start_pos) for _ in range(6)]
-    players.append(Player(player_start_pos, 0.3))
-    players.append(Player(player_start_pos, 0.3))
-    players.append(Player(player_start_pos, 0.5))
-    players.append(Player(player_start_pos, 0.01))
+    players = [Player(player_start_pos, 0.05)]
 else:
     players = [Player(player_start_pos)]
 
@@ -347,7 +345,7 @@ while running:
                     except KeyError:
                         progress = 0
                     features = [v_norm, math.sin(theta), math.cos(theta), angle_diff, progress]
-                    for angle in [-90, -60, -40, -20, 0, 20, 40, 60, 90]:
+                    for angle in [-90, -70, -50, -35, -20, -10, 0, 10, 20, 35, 50, 70, 90]:
                         cur_ray = ray_trace_bound(p, angle)
                         # pygame.draw.line(screen, (255, 255, 255), p.player_pos, cur_ray, 2)
                         features.append(np.clip(p.player_pos.distance_to(cur_ray)/300,0.0, 1.0))
@@ -434,7 +432,10 @@ while running:
                         elif len(p.tiles_visited) < min_visited_tiles:
                             p.dsq = True
                         else:
-                            lap_times.append(pygame.time.get_ticks() - p.start_time + p.amount_warnings * 5000)
+                            new_time = pygame.time.get_ticks() - p.start_time + p.amount_warnings * 5000
+                            if len(lap_times) == 0 or new_time < lap_times[0]:
+                                model.save("ddqn_best.pth")
+                            lap_times.append(new_time)
                             lap_times.sort()
                             lap_times = lap_times[:5]
                             # write_laptime(pygame.time.get_ticks() - start_time + amount_warnings * 5000)

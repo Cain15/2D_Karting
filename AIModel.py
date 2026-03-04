@@ -32,9 +32,11 @@ class DQN(nn.Module):
     def __init__(self, state_dim, action_dim):
         super(DQN, self).__init__()
         self.net = nn.Sequential(
-            nn.Linear(state_dim, 256),
+            nn.Linear(state_dim, 512),
             nn.ReLU(),
-            nn.Linear(256, 256),
+            nn.Linear(512, 512),
+            nn.ReLU(),
+            nn.Linear(512, 256),
             nn.ReLU(),
             nn.Linear(256, action_dim),
         )
@@ -68,29 +70,29 @@ class DDQNAgent:
                         (1,2), (1,3), (1,4),
                         (2,2), (2,3), (2,4)]
 
-        self.state_dim = 14
+        self.state_dim = 18
         self.action_dim = 9
 
         self.q_net = DQN(self.state_dim, self.action_dim)
         self.target_net = DQN(self.state_dim, self.action_dim)
         self.target_net.load_state_dict(self.q_net.state_dict())
 
-        self.optimizer = optim.Adam(self.q_net.parameters(), lr=1e-4)
+        self.optimizer = optim.Adam(self.q_net.parameters(), lr=3e-5)
 
         self.buffer = ReplayBuffer()
 
         self.gamma = 0.99
-        self.batch_size = 256
+        self.batch_size = 512
 
         self.last_save_time = time.time()
         self.save_interval = 300  # 5 minutes
 
         self.count = 0
-        self.train_frequency = 10
+        self.train_frequency = 20
 
-        self.epsilon = 0.8
-        self.epsilon_step = 0.00000001
-        self.epsilon_min = 0.05
+        self.epsilon = 0.1
+        self.epsilon_step = 0.0000001
+        self.epsilon_min = 0.01
 
     def q_value(self, state):
         with torch.no_grad():
@@ -148,7 +150,7 @@ class DDQNAgent:
         torch.nn.utils.clip_grad_norm_(self.q_net.parameters(), 10.0)
         self.optimizer.step()
 
-        tau = 0.005
+        tau = 0.001
         for target_param, q_param in zip(self.target_net.parameters(), self.q_net.parameters()):
             target_param.data.copy_(tau * q_param.data + (1.0 - tau) * target_param.data)
 
@@ -163,14 +165,14 @@ class DDQNAgent:
             'optimizer': self.optimizer.state_dict(),
             'epsilon': self.epsilon
         }, filename)
-        print("Model saved")
+        print(f"Model saved, eps: {str(self.epsilon)}")
 
     def load(self, filename="ddqn_model.pth"):
         checkpoint = torch.load(filename)
         self.q_net.load_state_dict(checkpoint['q_net'])
         self.target_net.load_state_dict(checkpoint['target_net'])
         self.optimizer.load_state_dict(checkpoint['optimizer'])
-        self.epsilon = checkpoint['epsilon']
+        # self.epsilon = checkpoint['epsilon']
 
 
 
