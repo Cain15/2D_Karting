@@ -70,11 +70,11 @@ def ray_trace_bound(player, angle):
     direction = pygame.Vector2(math.sin(ray_rad), -math.cos(ray_rad))
     prev_ray_tile = get_tile_pos(ray)
     ray_tile_type = track[prev_ray_tile[1]][prev_ray_tile[0]]
-    step = 1.0
+    step = 2.0
     steps = 0
     boundary_hit = False
     movement_dir = None
-    while not boundary_hit and steps < MAX_RAY_DIST:
+    while not boundary_hit and steps*step < MAX_RAY_DIST:
         ray += direction * step
         steps += 1
         if out_of_bounds(ray):
@@ -126,8 +126,6 @@ def get_reward(current_tile, previous_tile, player):
         return -50.0
     track_len = len(tile_order)
     delta = cur_idx - prev_idx
-    track_progress = tile_index.get(current_tile, 0) / len(tile_order)
-    progress_multiplier = 1.0 + 1.5 * max(0.0, track_progress - 0.7)
 
     # Wrap-around correction
     if delta < -track_len / 2:
@@ -137,7 +135,7 @@ def get_reward(current_tile, previous_tile, player):
     if delta > 1:
         rew = -50
     else:
-        rew = float(delta) * 5 * progress_multiplier
+        rew = float(delta) * 5
     if abs(p.player_velocity) < 5:
         rew -= 0.05
 
@@ -194,7 +192,7 @@ pause = 0
 message = ""
 
 # Keep lap times
-lap_times = [42000]
+lap_times = [40000]
 
 def reset(play):
     """
@@ -256,11 +254,12 @@ AI_mode = True
 model = DDQNAgent()
 model.load()
 if AI_mode:
-    players = [Player(player_start_pos, 0.05)]
+    players = [Player(player_start_pos) for _ in range(5)]
+    players.append(Player(player_start_pos, 0.15))
+    players.append(Player(player_start_pos, 0.25))
+    players.append(Player(player_start_pos, 0.01))
 else:
     players = [Player(player_start_pos)]
-
-# fps_timer = 0
 
 rotated_cache = {}
 clock = pygame.time.Clock()
@@ -494,9 +493,6 @@ while running:
         screen.blit(penalty_text, (10, 10))
 
     pygame.display.flip()
-    # fps_timer += dt
-    # if fps_timer >= 1.0:
-    #     print(clock.get_fps())
-    #     fps_timer = 0
+    pygame.display.set_caption(f"FPS: {clock.get_fps():.1f} | Eps: {model.epsilon:.4f}")
 
 pygame.quit()

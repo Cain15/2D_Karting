@@ -32,9 +32,9 @@ class DQN(nn.Module):
     def __init__(self, state_dim, action_dim):
         super(DQN, self).__init__()
         self.net = nn.Sequential(
-            nn.Linear(state_dim, 512),
+            nn.Linear(state_dim, 1024),
             nn.ReLU(),
-            nn.Linear(512, 512),
+            nn.Linear(1024, 512),
             nn.ReLU(),
             nn.Linear(512, 256),
             nn.ReLU(),
@@ -77,22 +77,22 @@ class DDQNAgent:
         self.target_net = DQN(self.state_dim, self.action_dim)
         self.target_net.load_state_dict(self.q_net.state_dict())
 
-        self.optimizer = optim.Adam(self.q_net.parameters(), lr=3e-5)
+        self.optimizer = optim.Adam(self.q_net.parameters(), lr=1e-4)
 
         self.buffer = ReplayBuffer()
 
         self.gamma = 0.99
-        self.batch_size = 512
+        self.batch_size = 256
 
         self.last_save_time = time.time()
         self.save_interval = 300  # 5 minutes
 
         self.count = 0
-        self.train_frequency = 20
+        self.train_frequency = 60
 
-        self.epsilon = 0.1
+        self.epsilon = 0.75
         self.epsilon_step = 0.0000001
-        self.epsilon_min = 0.01
+        self.epsilon_min = 0.0
 
     def q_value(self, state):
         with torch.no_grad():
@@ -150,7 +150,7 @@ class DDQNAgent:
         torch.nn.utils.clip_grad_norm_(self.q_net.parameters(), 10.0)
         self.optimizer.step()
 
-        tau = 0.001
+        tau = 0.005
         for target_param, q_param in zip(self.target_net.parameters(), self.q_net.parameters()):
             target_param.data.copy_(tau * q_param.data + (1.0 - tau) * target_param.data)
 
@@ -172,7 +172,7 @@ class DDQNAgent:
         self.q_net.load_state_dict(checkpoint['q_net'])
         self.target_net.load_state_dict(checkpoint['target_net'])
         self.optimizer.load_state_dict(checkpoint['optimizer'])
-        # self.epsilon = checkpoint['epsilon']
+        self.epsilon = checkpoint['epsilon']
 
 
 
