@@ -371,7 +371,7 @@ purposeful — it tried coherent action sequences — compared to the erratic ra
 | DQN                    | —             | 6 / 18            | Never           | Medium within reached corners |
 | PPO                    | —             | 0 / 18            | Never           | —                             |
 | DDQN                   | ~36.5s        | 18 / 18           | Regular         | High                          |
-| Rainbow DQN            | ~35.5s        | 18 / 18           | Most consistent | Highest                       |
+| Rainbow DQN            | ~34.1s        | 18 / 18           | Most consistent | Highest                       |
 
 ## Notes
 

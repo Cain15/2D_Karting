@@ -310,11 +310,11 @@ font = pygame.font.Font(None, 36)
 # Handle AI training variables
 from AIModel import DDQNAgent, Action
 
-AI_mode = False
+AI_mode = True
 model = DDQNAgent()
 model.load("rainbow_best_copy.pth")
 if AI_mode:
-    players = [Player(player_start_pos, i) for i in range(6)]
+    players = [Player(player_start_pos, i) for i in range(4)]
 else:
     players = [Player(player_start_pos)]
 
