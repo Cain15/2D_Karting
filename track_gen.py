@@ -5,18 +5,6 @@ TILE_SIZE = 64
 tiles_x = int(1280 / TILE_SIZE)
 tiles_y = int(768 / TILE_SIZE)
 
-"""
-    0: grass
-    1: straight up
-    2: straight down
-    3: straight left
-    4: straight right
-    5: corner down to right
-    6: corner down to left
-    7: corner up to right
-    8: corner up to left
-    9: finish line
-"""
 
 class Tile(enum.Enum):
     GRASS = 0
@@ -30,13 +18,21 @@ class Tile(enum.Enum):
     CORNER_UP_LEFT = 8
     FINISH_LINE = 9
 
+
+# all grass track generation
+
 # with open("track1.tr", "w") as f:
 #     for j in range(tiles_y):
 #         line = "0" * tiles_x
 #         line += "\n"
 #         f.write(line)
 
-def read_track(file):
+def read_track(file: str):
+    """
+    Parse a .tr track file into a 2-D grid of Tile values.
+    :param file: Path to the .tr track file.
+    :return: A 2-D list where each element is a Tile enum value.
+    """
     track = []
     with open(file, "r") as f:
         for line in f:
@@ -47,7 +43,17 @@ def read_track(file):
             track.append(row)
     return track
 
-def track_walk(track, start):
+
+def track_walk(track: list[list[Tile]], start: tuple[int, int]):
+    """
+    Walk the track starting from start and return tiles in traversal order.
+    The walk follows a single-path traversal: at each step it moves to an
+    unvisited, non-grass 4-directional neighbour, stopping when it returns
+    to start (completing the loop) or has no valid neighbour.
+    :param track: 2-D tile grid as returned by read_track.
+    :param start: (x, y) tile coordinate to begin from.
+    :return: Ordered list of (x, y) tile coordinates representing one full loop of the track.
+    """
     visited = set()
     order = []
     current = start
@@ -99,20 +105,36 @@ def track_walk(track, start):
         current = next_tile
     return order
 
+
 class Waypoint:
     def __init__(self, x, y):
         self.x = x
         self.y = y
 
-def is_corner(tile):
-    return tile in {
-            Tile.CORNER_DOWN_RIGHT,
-            Tile.CORNER_DOWN_LEFT,
-            Tile.CORNER_UP_RIGHT,
-            Tile.CORNER_UP_LEFT
-        }
 
-def generate_corner_waypoints(track, ordered_tiles):
+def is_corner(tile: Tile):
+    """
+    Check if the given tile is a corner.
+    :param tile: The tile we want checking
+    :return: True if it is a corner, False otherwise
+    """
+    return tile in {
+        Tile.CORNER_DOWN_RIGHT,
+        Tile.CORNER_DOWN_LEFT,
+        Tile.CORNER_UP_RIGHT,
+        Tile.CORNER_UP_LEFT
+    }
+
+
+def generate_corner_waypoints(track: list[list[Tile]], ordered_tiles: list[tuple[int, int]]):
+    """
+    Build a list of waypoints at the centre of every corner tile, in lap order.
+    Iterating through them in sequence guides an agent smoothly around the
+    full circuit.
+    :param track: 2D tile grid as returned by read_track.
+    :param ordered_tiles: Tiles in traversal order, as returned by track_walk.
+    :return: One Waypoint per corner tile, ordered by lap progression.
+    """
     waypoints = []
 
     for (tx, ty) in ordered_tiles:
@@ -125,29 +147,3 @@ def generate_corner_waypoints(track, ordered_tiles):
             waypoints.append(Waypoint(wx, wy))
 
     return waypoints
-
-def corner_reward(player, waypoints):
-    if not waypoints:
-        return 0
-
-    reward = 0
-    wp = waypoints[player.current_waypoint_index]
-
-    dx = wp.x - player.player_pos.x
-    dy = wp.y - player.player_pos.y
-    distance = (dx**2 + dy**2) ** 0.5
-
-    # Smooth reward for moving closer
-    if not math.isinf(player.prev_corner_distance):
-        progress = player.prev_corner_distance - distance
-        reward += progress * 0.05
-    player.prev_corner_distance = distance
-
-    # Waypoint reached
-    if distance < 55.57:
-        # reward += 3.0
-        player.current_waypoint_index = (player.current_waypoint_index + 1) % len(waypoints)
-        player.prev_corner_distance = float("inf")
-
-    return reward
-

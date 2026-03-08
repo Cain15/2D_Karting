@@ -1,7 +1,7 @@
 import numpy as np
 import pygame
 import math
-from track_gen import read_track, Tile, track_walk, generate_corner_waypoints, corner_reward
+from track_gen import read_track, Tile, track_walk, generate_corner_waypoints, Waypoint
 from Player import Player
 
 
@@ -119,6 +119,41 @@ def ray_trace_bound(player: Player, angle: int):
     ray -= direction * t
 
     return ray
+
+
+def corner_reward(player: Player, waypoints: list[Waypoint]):
+    """
+    Compute a reward signal based on the player's progress toward the current waypoint.
+    Gives a small continuous reward for closing the distance to the active waypoint,
+    and advances to the next waypoint once the player is within reach distance.
+    :param player: The Player object. Must expose player_pos, current_waypoint_index,
+                   and prev_corner_distance.
+    :param waypoints: Ordered list of corner waypoints for the track.
+    :return: The waypoint-based reward for the current timestep.
+    """
+    if not waypoints:
+        return 0
+
+    reward = 0
+    wp = waypoints[player.current_waypoint_index]
+
+    dx = wp.x - player.player_pos.x
+    dy = wp.y - player.player_pos.y
+    distance = (dx ** 2 + dy ** 2) ** 0.5
+
+    # Smooth reward for moving closer
+    if not math.isinf(player.prev_corner_distance):
+        progress = player.prev_corner_distance - distance
+        reward += progress * 0.05
+    player.prev_corner_distance = distance
+
+    # Waypoint reached
+    if distance < 55.57:
+        # reward += 3.0
+        player.current_waypoint_index = (player.current_waypoint_index + 1) % len(waypoints)
+        player.prev_corner_distance = float("inf")
+
+    return reward
 
 
 def get_reward(current_tile: tuple[int, int], previous_tile: tuple[int, int], player: Player):
@@ -275,9 +310,9 @@ font = pygame.font.Font(None, 36)
 # Handle AI training variables
 from AIModel import DDQNAgent, Action
 
-AI_mode = True
+AI_mode = False
 model = DDQNAgent()
-model.load()
+model.load("rainbow_best_copy.pth")
 if AI_mode:
     players = [Player(player_start_pos, i) for i in range(6)]
 else:
