@@ -124,6 +124,17 @@ model.load("Rainbow_best.pth")
 To watch a trained agent without further training, comment out the `model.update(...)` call in `main.py`. This will
 prevent the update delay.
 
+### Racing your AI model
+
+Load your specific checkpoint in race.py
+
+```python
+model.load("Rainbow_best.pth")
+```
+
+Simply run race.py instead of main.py. This will set up the same environment. Except you are playing and the AI is shown
+as a ghost driver.
+
 ---
 
 ## State & Action Space
@@ -373,7 +384,6 @@ purposeful — it tried coherent action sequences — compared to the erratic ra
 | DDQN                   | ~36.5s        | 18 / 18           | Regular         | High                          |
 | Rainbow DQN            | ~33.7s        | 18 / 18           | Most consistent | Highest                       |
 | Human (me)             | ~33.1s        | 18 / 18           | consistent      | Higher                        |
-  
 
 ## Notes
 
@@ -383,7 +393,5 @@ purposeful — it tried coherent action sequences — compared to the erratic ra
   omitted for simplicity but could further stabilize learning.
 - **Opponent agents:** In the future I could introduce multiple competing cars and explore multi-agent RL (MARL)
   scenarios.
-- **AI race:** I have plans of implementing racing against the trained AI model. This is where the procedural
-  implementation falls short.
 - **Generative AI:** Used to assist in translating academic papers on Reinforcement Learning into concrete
   implementations, and for general coding/documenting support during development.
