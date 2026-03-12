@@ -296,7 +296,7 @@ class DDQNAgent:
         self.train_frequency = 60
 
         self.last_save_time = time.time()
-        self.save_interval = 300
+        self.save_interval = 600
 
     def _get_nstep(self, player_id: int) -> NStepBuffer:
         if player_id not in self._nstep_buffers:
@@ -379,7 +379,7 @@ class DDQNAgent:
         self.q_net.reset_noise()
         self.target_net.reset_noise()
 
-    def save(self, filename: str = "rainbow_model.pth"):
+    def save(self, filename: str = "current_model.pth"):
         torch.save({
             'q_net': self.q_net.state_dict(),
             'target_net': self.target_net.state_dict(),
@@ -387,7 +387,7 @@ class DDQNAgent:
         }, filename)
         print(f"Model saved → {filename}")
 
-    def load(self, filename: str = "rainbow_model.pth"):
+    def load(self, filename: str = "current_model.pth"):
         checkpoint = torch.load(filename, weights_only=False)
         try:
             self.q_net.load_state_dict(checkpoint['q_net'])

@@ -20,3 +20,4 @@ class Player:
         self.current_waypoint_index = 0
         self.prev_corner_distance = float("inf")
         self.player_id = player_id
+        self.pause = False
