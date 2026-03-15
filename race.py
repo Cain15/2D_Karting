@@ -225,7 +225,7 @@ player = pygame.transform.rotate(player, offset_angle)
 friction = 0.1
 
 # Track generation
-track = read_track('track1.tr')
+track = read_track('hungaroflat.tr')
 corner = pygame.image.load('assets/corner.png').convert_alpha()
 corner = pygame.transform.scale(corner, (80, 80))
 straight = pygame.image.load('assets/straight.png').convert_alpha()
@@ -265,7 +265,6 @@ def reset(play: Player):
     play.prev_corner_distance = float("inf")
     play.dsq = False
     play.pause = False
-    if play == players[1]: model.load()
 
 # Make the track
 track_surface = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
@@ -306,7 +305,7 @@ font = pygame.font.Font(None, 36)
 from AIModel import DDQNAgent, Action
 
 model = DDQNAgent()
-model.load()
+model.load("hungaroflat_best.pth")
 players = [Player(player_start_pos), Player(player_start_pos, 1)]
 
 rotated_cache = {}

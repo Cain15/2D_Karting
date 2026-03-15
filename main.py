@@ -215,7 +215,7 @@ dt = 0
 TILE_SIZE = 80
 tiles_x = 20
 tiles_y = 12
-finish_tile = (4, 10) # Monza: (12,10), Hongaroflat: (4,10)
+finish_tile = (12, 10) # Monza: (12,10), Hongaroflat: (4,10)
 
 # Player properties
 offset_angle = 180
@@ -226,7 +226,7 @@ player = pygame.transform.rotate(player, offset_angle)
 friction = 0.1
 
 # Track generation
-track = read_track('hungaroflat.tr')
+track = read_track('monza.tr')
 corner = pygame.image.load('assets/corner.png').convert_alpha()
 corner = pygame.transform.scale(corner, (80, 80))
 straight = pygame.image.load('assets/straight.png').convert_alpha()
@@ -235,8 +235,8 @@ finish = pygame.image.load('assets/finish.png').convert_alpha()
 finish = pygame.transform.scale(finish, (80, 80))
 
 # Progress tracking
-min_visited_tiles = 68
 tile_order = track_walk(track, (finish_tile[0] + 1, finish_tile[1]))
+min_visited_tiles = len(tile_order) - 4
 tile_index = {tile: i for i, tile in enumerate(tile_order)}
 waypoints = generate_corner_waypoints(track, tile_order)
 
@@ -331,17 +331,16 @@ while running:
 
     # Track the farthest player for displaying there stats
     farthest_player = None
-    farthest_tile_idx = 0
+    farthest_tile_amount = 0
     for p in players:
         tile = get_tile_pos(p.player_pos)
         if not track[tile[1]][tile[0]] == Tile.GRASS:
-            idx = tile_index[tile]
             if not farthest_player:
                 farthest_player = p
-                farthest_tile_idx = idx
-            elif idx > farthest_tile_idx:
+                farthest_tile_amount = len(p.tiles_visited)
+            elif len(p.tiles_visited) > farthest_tile_amount:
                 farthest_player = p
-                farthest_tile_idx = idx
+                farthest_tile_amount = len(p.tiles_visited)
         else:
             farthest_player = players[0]
 
